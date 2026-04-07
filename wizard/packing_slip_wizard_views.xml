@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Wizard View -->
+    <record id="view_packing_slip_wizard_form" model="ir.ui.view">
+        <field name="name">packing.slip.wizard.form</field>
+        <field name="model">packing.slip.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Lắp Ráp Thành Phẩm / Đóng Gói">
+                <sheet>
+                    <group>
+                        <field name="request_id" readonly="1"/>
+                        <field name="barcode_input" autofocus="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Linh kiện đã quét">
+                            <field name="line_ids">
+                                <tree editable="bottom">
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="lot_id" readonly="1"/>
+                                    <field name="qty"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer>
+                    <button name="action_scan_barcode" string="Ghi Nhận Mã" type="object" class="btn-primary"/>
+                    <button name="action_finish_pack" string="Hoàn thành Thành Phẩm" type="object" class="btn-primary"/>
+                    <button special="cancel" data-hotkey="z" string="Đóng" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_packing_slip_wizard" model="ir.actions.act_window">
+        <field name="name">Quét Mã Lắp Ráp / Đóng Gói</field>
+        <field name="res_model">packing.slip.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>
