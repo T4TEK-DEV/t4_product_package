@@ -11,9 +11,9 @@
     'depends': ['stock', 'sale_stock'],
     'data': [
         'security/ir.model.access.csv',
+        'wizard/packing_slip_wizard_views.xml',
         'views/packing_request_views.xml',
         'views/stock_picking_views.xml',
-        'wizard/packing_slip_wizard_views.xml',
     ],
     'installable': True,
     'application': True,
