@@ -1,13 +1,13 @@
 {
-    'name': 'T4 Packing System',
-    'version': '18.0.1.0.0',
+    'name': 'T4 Product Package',
+    'version': '1.0',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
-        Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp, 
+        Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
         quét mã định danh và ghép vào một Mã Thành phẩm/Kiện hàng mới.
     """,
-    'category': 'Inventory/Packing',
-    'author': 'STI Team',
+    'category': 'Inventory/Warehouse',
+    'author': 'T4TEK-DEV',
     'depends': ['stock', 'sale_stock'],
     'data': [
         'security/ir.model.access.csv',
