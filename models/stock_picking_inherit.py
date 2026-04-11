@@ -13,7 +13,7 @@ class StockPicking(models.Model):
             raise UserError(_("Chỉ có thể mang đi đóng gói khi kiện hàng ở trạng thái Chờ hoặc Sẵn sàng!"))
         
         lines = []
-        for move in self.move_ids_without_package:
+        for move in self.move_ids:
             lines.append((0, 0, {
                 'product_id': move.product_id.id,
                 'product_uom_qty': move.product_uom_qty
