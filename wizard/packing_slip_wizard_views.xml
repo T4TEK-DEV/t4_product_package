@@ -8,16 +8,27 @@
             <form string="Lắp Ráp Thành Phẩm / Đóng Gói">
                 <sheet>
                     <group>
-                        <field name="request_id" readonly="1"/>
-                        <field name="barcode_input" autofocus="1"/>
+                        <group>
+                            <field name="request_id" readonly="1"/>
+                            <field name="fg_product_id" string="Thành Phẩm"
+                                   required="True"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="barcode_input" string="Quét Mã Vạch"
+                                   autofocus="1"
+                                   placeholder="Quét hoặc nhập barcode/serial..."/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="Linh kiện đã quét">
                             <field name="line_ids">
                                 <list editable="bottom">
-                                    <field name="product_id" readonly="1"/>
-                                    <field name="lot_id" readonly="1"/>
+                                    <field name="product_id"/>
+                                    <field name="lot_id"/>
                                     <field name="qty"/>
+                                    <field name="standard_price" string="Giá Vốn"/>
+                                    <field name="list_price" string="Giá Kho"/>
                                 </list>
                             </field>
                         </page>
@@ -25,7 +36,7 @@
                 </sheet>
                 <footer>
                     <button name="action_scan_barcode" string="Ghi Nhận Mã" type="object" class="btn-primary"/>
-                    <button name="action_finish_pack" string="Hoàn thành Thành Phẩm" type="object" class="btn-primary"/>
+                    <button name="action_finish_pack" string="Hoàn thành Thành Phẩm" type="object" class="btn-success"/>
                     <button special="cancel" data-hotkey="z" string="Đóng" class="btn-secondary"/>
                 </footer>
             </form>

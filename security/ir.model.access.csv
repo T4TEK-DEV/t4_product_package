@@ -1,5 +1,11 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_packing_request,packing.request,model_packing_request,,1,1,1,1
-access_packing_request_line,packing.request.line,model_packing_request_line,,1,1,1,1
-access_packing_slip_wizard,packing.slip.wizard,model_packing_slip_wizard,,1,1,1,1
-access_packing_slip_wizard_line,packing.slip.wizard.line,model_packing_slip_wizard_line,,1,1,1,1
+access_packing_request,packing.request,model_packing_request,base.group_user,1,1,1,0
+access_packing_request_line,packing.request.line,model_packing_request_line,base.group_user,1,1,1,1
+access_packing_slip_wizard,packing.slip.wizard,model_packing_slip_wizard,base.group_user,1,1,1,1
+access_packing_slip_wizard_line,packing.slip.wizard.line,model_packing_slip_wizard_line,base.group_user,1,1,1,1
+access_product_component_user,t4.product.component,model_t4_product_component,base.group_user,1,1,1,0
+access_product_component_admin,t4.product.component,model_t4_product_component,base.group_system,1,1,1,1
+access_assembly_record_user,t4.assembly.record,model_t4_assembly_record,base.group_user,1,1,1,0
+access_assembly_record_admin,t4.assembly.record,model_t4_assembly_record,base.group_system,1,1,1,1
+access_assembly_record_line_user,t4.assembly.record.line,model_t4_assembly_record_line,base.group_user,1,1,1,0
+access_assembly_record_line_admin,t4.assembly.record.line,model_t4_assembly_record_line,base.group_system,1,1,1,1
