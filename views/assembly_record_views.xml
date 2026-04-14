@@ -19,7 +19,7 @@
                 <filter name="filter_draft" string="Nháp"
                         domain="[('state', '=', 'draft')]"/>
                 <separator/>
-                <group expand="0" string="Nhóm Theo">
+                <group>
                     <filter name="group_product" string="Thành Phẩm"
                             context="{'group_by': 'product_id'}"/>
                     <filter name="group_date" string="Ngày Lắp Ráp"

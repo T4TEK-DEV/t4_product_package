@@ -40,9 +40,11 @@ class ProductComponent(models.Model):
     )
     note = fields.Char(string='Ghi Chú')
 
-    _sql_constraints = [
-        ('qty_positive', 'CHECK(quantity > 0)', 'Số lượng phải lớn hơn 0.'),
-    ]
+    @api.constrains('quantity')
+    def _check_qty_positive(self):
+        for line in self:
+            if line.quantity <= 0:
+                raise ValidationError(_('Số lượng phải lớn hơn 0.'))
 
     @api.constrains('parent_product_id', 'product_id')
     def _check_no_self_reference(self):
