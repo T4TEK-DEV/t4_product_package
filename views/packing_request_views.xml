@@ -14,6 +14,12 @@
                     <field name="state" widget="statusbar" statusbar_visible="draft,open,done"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_assembly_records" type="object"
+                                class="oe_stat_button" icon="fa-history">
+                            <field name="assembly_count" widget="statinfo" string="Lắp Ráp"/>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name"/>
@@ -71,4 +77,5 @@
 
     <menuitem id="menu_packing_request_root" name="Lắp Ráp / Đóng Gói" parent="stock.menu_stock_warehouse_mgmt" sequence="10"/>
     <menuitem id="menu_packing_request" name="Yêu Cầu Lắp Ráp" parent="menu_packing_request_root" action="action_packing_request" sequence="1"/>
+    <menuitem id="menu_assembly_record" name="Lịch Sử Lắp Ráp" parent="menu_packing_request_root" action="action_assembly_record" sequence="2"/>
 </odoo>

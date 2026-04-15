@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================
+         SEARCH VIEW
+         ============================================================ -->
+    <record id="view_assembly_record_search" model="ir.ui.view">
+        <field name="name">t4.assembly.record.search</field>
+        <field name="model">t4.assembly.record</field>
+        <field name="arch" type="xml">
+            <search string="Lịch Sử Lắp Ráp">
+                <field name="name" string="Mã Phiếu"/>
+                <field name="product_id" string="Thành Phẩm"/>
+                <field name="lot_id" string="Serial/Lot"/>
+                <field name="packing_request_id" string="Phiếu Đóng Gói"/>
+                <separator/>
+                <filter name="filter_done" string="Hoàn Thành"
+                        domain="[('state', '=', 'done')]"/>
+                <filter name="filter_draft" string="Nháp"
+                        domain="[('state', '=', 'draft')]"/>
+                <separator/>
+                <group>
+                    <filter name="group_product" string="Thành Phẩm"
+                            context="{'group_by': 'product_id'}"/>
+                    <filter name="group_date" string="Ngày Lắp Ráp"
+                            context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         LIST VIEW
+         ============================================================ -->
+    <record id="view_assembly_record_list" model="ir.ui.view">
+        <field name="name">t4.assembly.record.list</field>
+        <field name="model">t4.assembly.record</field>
+        <field name="arch" type="xml">
+            <list string="Lịch Sử Lắp Ráp" decoration-success="state == 'done'"
+                  decoration-muted="state == 'cancel'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="total_standard_price" string="Tổng Giá Vốn"/>
+                <field name="total_list_price" string="Tổng Giá Kho"/>
+                <field name="packing_request_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'draft'"
+                       decoration-danger="state == 'cancel'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         FORM VIEW
+         ============================================================ -->
+    <record id="view_assembly_record_form" model="ir.ui.view">
+        <field name="name">t4.assembly.record.form</field>
+        <field name="model">t4.assembly.record</field>
+        <field name="arch" type="xml">
+            <form string="Phiếu Lắp Ráp">
+                <header>
+                    <button name="action_done" string="Hoàn Thành" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_cancel" string="Hủy" type="object"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Mã Phiếu"/>
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="Thông Tin Thành Phẩm">
+                            <field name="product_id"/>
+                            <field name="lot_id"/>
+                            <field name="date"/>
+                        </group>
+                        <group string="Liên Kết">
+                            <field name="packing_request_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="components" string="Chi Tiết Linh Kiện">
+                            <field name="line_ids">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="lot_id"/>
+                                    <field name="quantity"/>
+                                    <field name="product_uom_id"/>
+                                    <field name="standard_price" string="Giá Vốn"/>
+                                    <field name="list_price" string="Giá Kho"/>
+                                    <field name="total_standard_price" string="Tổng GV" sum="Tổng"/>
+                                    <field name="total_list_price" string="Tổng GK" sum="Tổng"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="total_standard_price" string="Tổng Giá Vốn"/>
+                                <field name="total_list_price" string="Tổng Giá Kho"/>
+                            </group>
+                        </page>
+                        <page name="notes" string="Ghi Chú">
+                            <field name="note" placeholder="Ghi chú..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         ACTION
+         ============================================================ -->
+    <record id="action_assembly_record" model="ir.actions.act_window">
+        <field name="name">Lịch Sử Lắp Ráp</field>
+        <field name="res_model">t4.assembly.record</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_assembly_record_search"/>
+        <field name="context">{'search_default_filter_done': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có phiếu lắp ráp nào.
+            </p>
+        </field>
+    </record>
+
+</odoo>
