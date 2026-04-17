@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Override placeholder menus trong t4_sti → trỏ vào action của module này -->
+    <!-- Override placeholder menus trong t4_sti → trỏ vào action của module này.
+         PHẢI set explicit parent + name vì Odoo reset các field này khi override
+         menuitem chỉ với action. -->
     <menuitem id="t4_sti.menu_assembly"
-              action="action_packing_request"/>
+              name="Lắp Ráp"
+              parent="t4_sti.menu_operations_technical"
+              action="action_packing_request"
+              sequence="10"/>
     <menuitem id="t4_sti.menu_assembly_history"
-              action="action_assembly_record"/>
+              name="Phiếu Lắp Ráp"
+              parent="t4_sti.menu_management"
+              action="action_assembly_record"
+              sequence="30"/>
 </odoo>
