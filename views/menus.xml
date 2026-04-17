@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Override placeholder menus trong t4_sti → trỏ vào action của module này -->
+    <menuitem id="t4_sti.menu_assembly"
+              action="action_packing_request"/>
+    <menuitem id="t4_sti.menu_assembly_history"
+              action="action_assembly_record"/>
+</odoo>

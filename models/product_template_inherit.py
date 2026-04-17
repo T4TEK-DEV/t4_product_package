@@ -28,6 +28,27 @@ class ProductTemplate(models.Model):
         string='Số Lần Lắp Ráp',
         compute='_compute_assembly_count',
     )
+    find_fg_by_component = fields.Char(
+        string='Tìm TP theo Linh Kiện',
+        store=False,
+        search='_search_find_fg_by_component',
+        help='Search-only field: nhập tên/mã linh kiện để tìm các Thành Phẩm có '
+             'chứa linh kiện đó trong BOM (component_ids).',
+    )
+
+    def _search_find_fg_by_component(self, operator, value):
+        """Tìm product.template là FG (is_combo=True) có linh kiện match value."""
+        if not value or operator not in ('=', 'ilike', '=ilike', 'like'):
+            return [('id', '=', False)]
+        components = self.env['t4.product.component'].search([
+            '|', '|', '|',
+            ('product_id.name', 'ilike', value),
+            ('product_id.default_code', 'ilike', value),
+            ('product_id.barcode', 'ilike', value),
+            ('product_id.display_name', 'ilike', value),
+        ])
+        fg_ids = components.mapped('parent_product_id').ids
+        return [('id', 'in', fg_ids or [0])]
 
     def _compute_component_count(self):
         for record in self:
