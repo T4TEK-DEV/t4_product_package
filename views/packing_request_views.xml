@@ -75,7 +75,7 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_packing_request_root" name="Lắp Ráp / Đóng Gói" parent="stock.menu_stock_warehouse_mgmt" sequence="10"/>
-    <menuitem id="menu_packing_request" name="Yêu Cầu Lắp Ráp" parent="menu_packing_request_root" action="action_packing_request" sequence="1"/>
-    <menuitem id="menu_assembly_record" name="Lịch Sử Lắp Ráp" parent="menu_packing_request_root" action="action_assembly_record" sequence="2"/>
+    <!-- Menu riêng dưới Stock/Inventory gốc đã xoá: 2 menu action_packing_request
+         và action_assembly_record giờ được host ngay trong cây STI qua override
+         t4_sti.menu_assembly + t4_sti.menu_assembly_history (views/menus.xml). -->
 </odoo>
