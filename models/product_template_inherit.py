@@ -5,11 +5,6 @@ from odoo import api, fields, models
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
-    is_combo = fields.Boolean(
-        string='Thành Phẩm',
-        default=False,
-        help='Sản phẩm này là thành phẩm (FG) — có quy trình lắp ráp.',
-    )
     component_ids = fields.One2many(
         't4.product.component',
         'parent_product_id',
