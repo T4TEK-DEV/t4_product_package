@@ -2,51 +2,12 @@
 <odoo>
 
     <!--
-        Inherit t4_sti.view_t4_product_template_search —
-        Mở rộng "Tìm kiếm tổng hợp" (thêm component lookup) +
-        thêm field "Tìm TP theo linh kiện".
-    -->
-    <record id="view_t4_product_template_search_package" model="ir.ui.view">
-        <field name="name">t4.product.template.search.package</field>
-        <field name="model">product.template</field>
-        <field name="inherit_id" ref="t4_sti.view_t4_product_template_search"/>
-        <field name="priority">105</field>
-        <field name="arch" type="xml">
-            <!-- Mở rộng "Tìm kiếm tổng hợp" để quét thêm linh kiện bên trong TP -->
-            <field name="name" position="replace">
-                <field name="name" string="Tìm kiếm tổng hợp"
-                       filter_domain="[
-                           '|', '|', '|', '|', '|', '|', '|',
-                           ('display_name', 'ilike', self),
-                           ('default_code', 'ilike', self),
-                           ('barcode', 'ilike', self),
-                           ('product_tag_ids.name', 'ilike', self),
-                           ('categ_id.complete_name', 'ilike', self),
-                           ('technical_categ_id.complete_name', 'ilike', self),
-                           ('component_ids.product_id.display_name', 'ilike', self),
-                           ('name', 'ilike', self),
-                       ]"/>
-            </field>
-            <!-- Thêm field riêng "Tìm TP theo linh kiện" -->
-            <field name="barcode" position="after">
-                <field name="find_fg_by_component"
-                       string="🔍 Tìm TP theo linh kiện"
-                       filter_domain="[('find_fg_by_component', 'ilike', self)]"/>
-            </field>
-            <!-- Filter: chỉ hiện Thành Phẩm / Linh Kiện -->
-            <filter name="filter_service" position="after">
-                <separator/>
-                <filter name="filter_fg" string="Thành Phẩm"
-                        domain="[('is_combo', '=', True)]"/>
-                <filter name="filter_component" string="Linh Kiện"
-                        domain="[('is_combo', '=', False)]"/>
-            </filter>
-        </field>
-    </record>
-
-    <!--
         Inherit Odoo base product.template form —
-        thêm is_combo, smart buttons, component tab
+        thêm is_combo, smart buttons, component tab.
+
+        Phần inherit search view của t4_sti đã được di chuyển sang
+        t4_sti/views/product_template_package_views.xml (vì t4_sti depend
+        ngược lại t4_product_package, không thể để ref t4_sti.* ở đây).
     -->
     <record id="view_product_template_form_inherit_package" model="ir.ui.view">
         <field name="name">product.template.form.inherit.package</field>

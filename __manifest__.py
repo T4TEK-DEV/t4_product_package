@@ -10,7 +10,7 @@
     'category': 'Inventory/Warehouse',
     'author': 'T4TEK-DEV',
     'license': 'LGPL-3',
-    'depends': ['stock', 'sale_stock', 'mail', 't4_sti'],
+    'depends': ['stock', 'sale_stock', 'mail'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
@@ -24,8 +24,6 @@
         'views/product_template_views.xml',
         'views/packing_request_views.xml',
         'views/stock_picking_views.xml',
-        # 5. Menus (cuối cùng, sau tất cả actions)
-        'views/menus.xml',
     ],
     'installable': True,
     'application': False,
