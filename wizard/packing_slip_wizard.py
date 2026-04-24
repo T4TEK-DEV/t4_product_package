@@ -11,8 +11,9 @@ class PackingSlipWizard(models.TransientModel):
     fg_product_id = fields.Many2one(
         'product.product',
         string='Thành Phẩm',
-        domain="[('is_combo', '=', True)]",
-        help='Sản phẩm thành phẩm sẽ được tạo ra từ linh kiện đã quét.',
+        domain="[('tracking', '=', 'serial')]",
+        help='Sản phẩm thành phẩm (serial) sẽ được tạo ra từ linh kiện đã quét. '
+             'Mọi sản phẩm serial đều có thể đóng vai trò Thành Phẩm.',
     )
     barcode_input = fields.Char(string='Quét Mã Vạch')
     line_ids = fields.One2many('packing.slip.wizard.line', 'wizard_id', string='Linh Kiện Đã Quét')

@@ -32,7 +32,12 @@ class ProductTemplate(models.Model):
     )
 
     def _search_find_fg_by_component(self, operator, value):
-        """Tìm product.template là FG (is_combo=True) có linh kiện match value."""
+        """Tìm product.template là Thành Phẩm (có BOM) chứa linh kiện match value.
+
+        Thành Phẩm = bất kỳ product.template nào có `component_ids` được
+        khai báo. Mọi sản phẩm serial đều có thể là Thành Phẩm, và Thành
+        Phẩm cũng có thể là linh kiện của Thành Phẩm khác.
+        """
         if not value or operator not in ('=', 'ilike', '=ilike', 'like'):
             return [('id', '=', False)]
         components = self.env['t4.product.component'].search([

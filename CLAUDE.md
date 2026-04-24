@@ -50,10 +50,15 @@ Wizard quét mã lắp ráp thành phẩm.
 - **Finish**: tạo t4.assembly.record + stock.lot cho FG, update qty_packed
 
 ### product.template (extend)
-- `is_combo` (Boolean) — đánh dấu thành phẩm
-- `component_ids` (One2many) — BOM linh kiện
+- `component_ids` (One2many) — BOM linh kiện (mở cho mọi sản phẩm serial)
 - `component_count`, `assembly_count` — computed statistics
-- Smart buttons: Linh Kiện, Lắp Ráp
+- Smart buttons Linh Kiện / Lắp Ráp — ẩn khi `tracking != 'serial'`
+- **Không có flag đánh dấu Thành Phẩm**: mọi sản phẩm `tracking='serial'`
+  đều có thể:
+    • đóng vai trò Thành Phẩm (khai BOM, chạy assembly wizard), HOẶC
+    • là linh kiện của Thành Phẩm khác.
+  Linh kiện có thể là sản phẩm bất kỳ tracking nào (serial / lot / none),
+  chỉ Thành Phẩm mới bắt buộc `tracking='serial'` để tạo lot FG.
 
 ### stock.picking (extend)
 - `is_locked_by_packing` — lock khi đang đóng gói

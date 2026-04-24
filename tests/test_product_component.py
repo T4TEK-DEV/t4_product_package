@@ -14,8 +14,8 @@ class TestProductComponent(TransactionCase):
         # Thành phẩm
         cls.fg_template = cls.env['product.template'].create({
             'name': 'Laptop Assembled',
-            'is_combo': True,
             'is_storable': True,
+            'tracking': 'serial',
         })
         # Linh kiện
         cls.comp_screen = cls.env['product.product'].create({
@@ -114,7 +114,7 @@ class TestProductComponent(TransactionCase):
     def test_component_count_empty(self):
         tmpl = self.env['product.template'].create({
             'name': 'Empty FG',
-            'is_combo': True,
+            'tracking': 'serial',
         })
         self.assertEqual(tmpl.component_count, 0)
 
