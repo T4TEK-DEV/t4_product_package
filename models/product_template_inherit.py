@@ -15,9 +15,10 @@ class ProductTemplate(models.Model):
         compute='_compute_component_count',
     )
     assembly_record_ids = fields.One2many(
-        't4.assembly.record',
+        't4.product.creation',
         'product_tmpl_id',
         string='Lịch Sử Lắp Ráp',
+        domain=[('type', '=', 'assembly')],
     )
     assembly_count = fields.Integer(
         string='Số Lần Lắp Ráp',
@@ -55,8 +56,12 @@ class ProductTemplate(models.Model):
             record.component_count = len(record.component_ids)
 
     def _compute_assembly_count(self):
-        data = self.env['t4.assembly.record'].read_group(
-            [('product_tmpl_id', 'in', self.ids), ('state', '=', 'done')],
+        data = self.env['t4.product.creation'].read_group(
+            [
+                ('product_tmpl_id', 'in', self.ids),
+                ('state', '=', 'done'),
+                ('type', '=', 'assembly'),
+            ],
             ['product_tmpl_id'], ['product_tmpl_id'],
         )
         mapped = {d['product_tmpl_id'][0]: d['product_tmpl_id_count'] for d in data}
@@ -79,7 +84,11 @@ class ProductTemplate(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': 'Lịch Sử Lắp Ráp',
-            'res_model': 't4.assembly.record',
+            'res_model': 't4.product.creation',
             'view_mode': 'list,form',
-            'domain': [('product_tmpl_id', '=', self.id)],
+            'domain': [
+                ('product_tmpl_id', '=', self.id),
+                ('type', '=', 'assembly'),
+            ],
+            'context': {'default_type': 'assembly'},
         }

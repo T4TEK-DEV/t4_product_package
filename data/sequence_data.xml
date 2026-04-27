@@ -9,10 +9,13 @@
             <field name="padding">5</field>
         </record>
 
-        <record id="seq_assembly_record" model="ir.sequence">
-            <field name="name">Phiếu Lắp Ráp</field>
-            <field name="code">t4.assembly.record</field>
-            <field name="prefix">AR/%(year)s/</field>
+        <!-- Sequence cho t4.product.creation: dùng prefix theo type qua
+             post-action ở _prepare_sequence (sau này nếu cần). Hiện đặt
+             chung 1 prefix PC/. -->
+        <record id="seq_t4_product_creation" model="ir.sequence">
+            <field name="name">Phiếu Lắp Ráp / Định Danh</field>
+            <field name="code">t4.product.creation</field>
+            <field name="prefix">PC/%(year)s/</field>
             <field name="padding">5</field>
         </record>
 
