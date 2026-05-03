@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Phiếu Lắp Ráp / Định Danh Sản Phẩm
+        ==================================
+
+        1 form view duy nhất phục vụ cả 2 type:
+          - type='assembly': hiện 2 cột "Linh kiện sử dụng" + "Linh kiện trả"
+          - type='identify': hiện 1 group "Linh kiện sử dụng" full-width
+
+        2 list view riêng:
+          - history list (lịch sử phiếu đã tạo)
+          - same shape, khác filter qua action.domain
+
+        Layout copy từ v18 product.creation.wizard (SOURCE OF TRUTH:
+        D:/workspaces/t4tek/odoo/extra-addons_18/STI-backend/STIs/views/
+        product_creation_wizard_views.xml).
+    -->
+
+    <!-- ============================================================
+         FORM VIEW
+         ============================================================ -->
+    <record id="view_t4_product_creation_form" model="ir.ui.view">
+        <field name="name">t4.product.creation.form</field>
+        <field name="model">t4.product.creation</field>
+        <field name="arch" type="xml">
+            <form string="Phiếu Lắp Ráp">
+                <field name="type" invisible="1"/>
+                <field name="cost_currency_id" invisible="1"/>
+
+                <header>
+                    <button name="action_print"
+                            string="In"
+                            type="object"
+                            class="btn"
+                            icon="fa-print"
+                            invisible="not line_ids and not line_returned_ids"/>
+                    <button name="action_scan_barcode"
+                            string="Quét Mã"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state == 'done' or not barcode_input"/>
+                    <button name="action_confirm"
+                            string="Xác Nhận"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state == 'done' or (not line_ids and not line_returned_ids)"/>
+                    <button name="action_cancel"
+                            string="Huỷ"
+                            type="object"
+                            invisible="state in ('done', 'cancel')"/>
+                    <button name="action_draft"
+                            string="Đặt về Nháp"
+                            type="object"
+                            invisible="state != 'cancel'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,done"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="product_id"
+                                   placeholder="Thành phẩm..."
+                                   readonly="state == 'done' or line_ids or line_returned_ids"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                        </h1>
+                        <h3>
+                            <field name="product_name" readonly="1"/>
+                        </h3>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="lot_id"
+                                   string="Mã Quản Lý Thành Phẩm"
+                                   readonly="state == 'done' or type == 'assembly'"
+                                   options="{'no_open': 1, 'no_create': 1}"
+                                   help="Type=assembly: tự tạo khi xác nhận. Type=identify: chọn lot có sẵn."/>
+                            <field name="create_uid"
+                                   options="{'no_open': 1, 'no_create': 1}"
+                                   readonly="1"/>
+                            <field name="create_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"
+                                   readonly="1"
+                                   options="{'no_create': 1, 'no_open': 1}"/>
+                            <field name="packing_request_id"
+                                   readonly="state == 'done'"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                            <field name="barcode_input"
+                                   placeholder="Quét hoặc nhập barcode/serial..."
+                                   readonly="state == 'done'"/>
+                            <field name="total_standard_price"
+                                   widget="monetary"
+                                   readonly="1"
+                                   groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                            <field name="total_list_price"
+                                   widget="monetary"
+                                   readonly="1"
+                                   groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                        </group>
+                    </group>
+
+                    <!-- ============================================
+                         BLOCK ĐỊNH DANH (type='identify')
+                         Single group, full-width, "Linh kiện sử dụng".
+
+                         Sequential auto-input chain (data-auto-input-order):
+                           0 = brand_part_id  (Brd. S/N — scan đầu tiên)
+                           1 = manufacturer_part_id (Mnf. S/N)
+                           2 = barcode_input  (Barcode — cho barcode tracking)
+                         ============================================ -->
+                    <group string="Linh Kiện Sử Dụng"
+                           invisible="type != 'identify'"
+                           class="oe_group_border">
+                        <field name="line_ids"
+                               nolabel="1"
+                               readonly="state == 'done' or not lot_id"
+                               context="{
+                                   'default_line_type': 'used',
+                                   'wizard_type': type,
+                                   't4_auto_input_enabled': True,
+                               }">
+                            <list editable="bottom" create="true" delete="true">
+                                <field name="sequence" widget="handle"/>
+                                <field name="line_type" column_invisible="1"/>
+                                <field name="tracking" column_invisible="1"/>
+                                <field name="cost_currency_id" column_invisible="1"/>
+                                <field name="parent_state" column_invisible="1"/>
+
+                                <field name="product_id"
+                                       string="Sản Phẩm"
+                                       required="1"
+                                       readonly="parent_state == 'done'"
+                                       options="{'no_open': 1, 'no_create': 1}"/>
+                                <field name="quantity"
+                                       string="Số Lượng"
+                                       readonly="parent_state == 'done' or tracking == 'serial'"/>
+                                <field name="lot_id"
+                                       string="Mã Quản Lý"
+                                       readonly="parent_state == 'done'"
+                                       options="{'no_open': 1, 'no_create': 1}"/>
+                                <field name="brand_part_id"
+                                       string="Brd. S/N"
+                                       data-auto-input-order="0"
+                                       readonly="parent_state == 'done'"/>
+                                <field name="manufacturer_part_id"
+                                       string="Mnf. S/N"
+                                       data-auto-input-order="1"
+                                       readonly="parent_state == 'done'"/>
+                                <field name="barcode_input"
+                                       string="Barcode"
+                                       data-auto-input-order="2"
+                                       readonly="parent_state == 'done'"/>
+                                <field name="card_code"
+                                       string="Mã Thẻ"
+                                       readonly="parent_state == 'done'"/>
+                                <field name="standard_price"
+                                       widget="monetary"
+                                       readonly="parent_state == 'done'"
+                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                <field name="list_price"
+                                       widget="monetary"
+                                       readonly="parent_state == 'done'"
+                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                <field name="total_standard_price"
+                                       widget="monetary"
+                                       sum="Tổng GV"
+                                       optional="hide"
+                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                <field name="total_list_price"
+                                       widget="monetary"
+                                       sum="Tổng GK"
+                                       optional="hide"
+                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                <field name="create_date" string="Ngày Tạo" optional="hide"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <!-- ============================================
+                         BLOCK LẮP RÁP (type='assembly')
+                         Hai cột: Sử dụng (trái) + Trả (phải).
+                         ============================================ -->
+                    <div invisible="type != 'assembly'"
+                         class="d-flex flex-row gap-2">
+                        <div class="flex-fill">
+                            <group string="Linh Kiện Sử Dụng" class="oe_group_border">
+                                <field name="line_ids"
+                                       nolabel="1"
+                                       readonly="state == 'done' or not lot_id and type == 'assembly'"
+                                       context="{
+                                           'default_line_type': 'used',
+                                           'wizard_type': type,
+                                           't4_auto_input_enabled': True,
+                                       }">
+                                    <list editable="bottom" create="true" delete="true">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="line_type" column_invisible="1"/>
+                                        <field name="tracking" column_invisible="1"/>
+                                        <field name="cost_currency_id" column_invisible="1"/>
+                                        <field name="parent_state" column_invisible="1"/>
+
+                                        <field name="product_id"
+                                               string="Sản Phẩm"
+                                               required="1"
+                                               readonly="parent_state == 'done'"
+                                               options="{'no_open': 1, 'no_create': 1}"/>
+                                        <field name="quantity"
+                                               string="Số Lượng"
+                                               readonly="parent_state == 'done' or tracking == 'serial'"/>
+                                        <field name="brand_part_id"
+                                               string="Brd. S/N"
+                                               data-auto-input-order="0"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="manufacturer_part_id"
+                                               string="Mnf. S/N"
+                                               data-auto-input-order="1"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="barcode_input"
+                                               string="Barcode"
+                                               data-auto-input-order="2"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="card_code"
+                                               string="Mã Thẻ"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="create_date" string="Ngày Tạo" optional="hide"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </div>
+                        <div class="flex-fill">
+                            <group string="Linh Kiện Trả" class="oe_group_border">
+                                <field name="line_returned_ids"
+                                       nolabel="1"
+                                       readonly="state == 'done' or not lot_id"
+                                       context="{'default_line_type': 'returned', 'wizard_type': type}">
+                                    <list editable="bottom" create="true" delete="true"
+                                          decoration-warning="not is_scrap"
+                                          decoration-danger="is_scrap">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="line_type" column_invisible="1"/>
+                                        <field name="tracking" column_invisible="1"/>
+                                        <field name="parent_state" column_invisible="1"/>
+
+                                        <field name="product_id"
+                                               string="Sản Phẩm"
+                                               required="1"
+                                               readonly="parent_state == 'done'"
+                                               options="{'no_open': 1, 'no_create': 1}"/>
+                                        <field name="quantity"
+                                               string="Số Lượng"
+                                               readonly="parent_state == 'done' or tracking == 'serial'"/>
+                                        <field name="barcode_input"
+                                               string="Barcode"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="card_code"
+                                               string="Mã Thẻ"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="is_scrap"
+                                               string="Hư Hỏng"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="note"
+                                               string="Ghi Chú"
+                                               required="is_scrap"/>
+                                        <field name="create_date" string="Ngày Tạo" optional="hide"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </div>
+                    </div>
+
+                    <!-- ============================================
+                         NOTEBOOK: Ghi chú & Hình ảnh xác minh
+                         ============================================ -->
+                    <notebook>
+                        <page string="Ghi Chú &amp; Hình Ảnh Xác Minh" name="notes">
+                            <field name="note"
+                                   readonly="state == 'done'"
+                                   placeholder="Ghi chú nội bộ..."/>
+                            <separator string="Hình Ảnh Xác Minh"/>
+                            <field name="image_tracking_filename" invisible="1"/>
+                            <field name="image_tracking"
+                                   widget="image"
+                                   options="{'size': [600, 0]}"
+                                   readonly="state == 'done'"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         LIST VIEW (lịch sử)
+         ============================================================ -->
+    <record id="view_t4_product_creation_list" model="ir.ui.view">
+        <field name="name">t4.product.creation.list</field>
+        <field name="model">t4.product.creation</field>
+        <field name="arch" type="xml">
+            <list string="Lịch Sử Phiếu"
+                  decoration-success="state == 'done'"
+                  decoration-muted="state == 'cancel'">
+                <field name="create_date" string="Ngày Tạo"/>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id" options="{'no_open': 1, 'no_create': 1}"/>
+                <field name="type" widget="badge"
+                       decoration-info="type == 'assembly'"
+                       decoration-warning="type == 'identify'"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'draft'"
+                       decoration-danger="state == 'cancel'"/>
+                <field name="create_uid" options="{'no_open': 1, 'no_create': 1}"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         SEARCH VIEW
+         ============================================================ -->
+    <record id="view_t4_product_creation_search" model="ir.ui.view">
+        <field name="name">t4.product.creation.search</field>
+        <field name="model">t4.product.creation</field>
+        <field name="arch" type="xml">
+            <search string="Tìm Phiếu">
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="lot_id"/>
+                <field name="create_uid"/>
+                <separator/>
+                <filter name="filter_draft" string="Nháp"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_done" string="Hoàn Thành"
+                        domain="[('state', '=', 'done')]"/>
+                <filter name="filter_cancel" string="Đã Huỷ"
+                        domain="[('state', '=', 'cancel')]"/>
+                <separator/>
+                <group>
+                    <filter name="group_state" string="Trạng Thái"
+                            context="{'group_by': 'state'}"/>
+                    <filter name="group_type" string="Loại Phiếu"
+                            context="{'group_by': 'type'}"/>
+                    <filter name="group_product" string="Thành Phẩm"
+                            context="{'group_by': 'product_id'}"/>
+                    <filter name="group_create_date" string="Ngày Tạo"
+                            context="{'group_by': 'create_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         ACTIONS — Lắp Ráp (type='assembly')
+         ============================================================ -->
+    <!-- Tạo phiếu lắp ráp mới (form trực tiếp) — gắn vào menu Lắp Ráp -->
+    <record id="action_t4_product_creation_assembly_new" model="ir.actions.act_window">
+        <field name="name">Lắp Ráp</field>
+        <field name="res_model">t4.product.creation</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_t4_product_creation_form"/>
+        <field name="target">current</field>
+        <field name="context">{
+            'default_type': 'assembly',
+            'create': 1,
+            'breadcrumb_name': 'Phiếu Lắp Ráp',
+        }</field>
+    </record>
+
+    <!-- Lịch sử phiếu lắp ráp — gắn vào menu Quản Lý → Phiếu Lắp Ráp -->
+    <record id="action_t4_product_creation_assembly_history" model="ir.actions.act_window">
+        <field name="name">Phiếu Lắp Ráp</field>
+        <field name="res_model">t4.product.creation</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('type', '=', 'assembly')]</field>
+        <field name="search_view_id" ref="view_t4_product_creation_search"/>
+        <field name="context">{
+            'default_type': 'assembly',
+            'create': 0,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Chưa có phiếu lắp ráp nào.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_t4_product_creation_assembly_history_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_t4_product_creation_list"/>
+        <field name="act_window_id" ref="action_t4_product_creation_assembly_history"/>
+    </record>
+    <record id="action_t4_product_creation_assembly_history_view_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_t4_product_creation_form"/>
+        <field name="act_window_id" ref="action_t4_product_creation_assembly_history"/>
+    </record>
+
+    <!-- ============================================================
+         ACTIONS — Định Danh (type='identify')
+         ============================================================ -->
+    <record id="action_t4_product_creation_identify_new" model="ir.actions.act_window">
+        <field name="name">Định Danh LK TP</field>
+        <field name="res_model">t4.product.creation</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_t4_product_creation_form"/>
+        <field name="target">current</field>
+        <field name="context">{
+            'default_type': 'identify',
+            'create': 1,
+            'breadcrumb_name': 'Phiếu Định Danh LK TP',
+        }</field>
+    </record>
+
+    <record id="action_t4_product_creation_identify_history" model="ir.actions.act_window">
+        <field name="name">Phiếu Định Danh LK TP</field>
+        <field name="res_model">t4.product.creation</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('type', '=', 'identify')]</field>
+        <field name="search_view_id" ref="view_t4_product_creation_search"/>
+        <field name="context">{
+            'default_type': 'identify',
+            'create': 0,
+        }</field>
+    </record>
+
+    <record id="action_t4_product_creation_identify_history_view_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_t4_product_creation_list"/>
+        <field name="act_window_id" ref="action_t4_product_creation_identify_history"/>
+    </record>
+    <record id="action_t4_product_creation_identify_history_view_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_t4_product_creation_form"/>
+        <field name="act_window_id" ref="action_t4_product_creation_identify_history"/>
+    </record>
+</odoo>

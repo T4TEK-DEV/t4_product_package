@@ -49,9 +49,10 @@ class PackingRequest(models.Model):
         string='Chi Tiết Đóng Gói',
     )
     assembly_record_ids = fields.One2many(
-        't4.assembly.record',
+        't4.product.creation',
         'packing_request_id',
         string='Phiếu Lắp Ráp',
+        domain=[('type', '=', 'assembly')],
     )
     assembly_count = fields.Integer(
         string='Số Lần Lắp Ráp',
@@ -98,7 +99,11 @@ class PackingRequest(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': _('Lịch Sử Lắp Ráp'),
-            'res_model': 't4.assembly.record',
+            'res_model': 't4.product.creation',
             'view_mode': 'list,form',
-            'domain': [('packing_request_id', '=', self.id)],
+            'domain': [
+                ('packing_request_id', '=', self.id),
+                ('type', '=', 'assembly'),
+            ],
+            'context': {'default_packing_request_id': self.id, 'default_type': 'assembly'},
         }

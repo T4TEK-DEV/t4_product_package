@@ -7,7 +7,12 @@
             <form string="Phiếu Lắp Ráp / Đóng Gói">
                 <header>
                     <button name="action_confirm" string="Xác nhận" type="object" invisible="state != 'draft'" class="oe_highlight"/>
-                    <button name="%(action_packing_slip_wizard)d" string="Tạo Thành Phẩm (Mã Vạch)" type="action" invisible="state != 'open'" class="oe_highlight"/>
+                    <button name="%(t4_product_package.action_t4_product_creation_assembly_new)d"
+                            string="Tạo Phiếu Lắp Ráp"
+                            type="action"
+                            invisible="state != 'open'"
+                            class="oe_highlight"
+                            context="{'default_packing_request_id': id, 'default_type': 'assembly'}"/>
                     <button name="action_done" string="Hoàn thành yêu cầu" type="object" invisible="state != 'open'" class="oe_highlight"/>
                     <button name="action_cancel" string="Hủy bỏ" type="object" invisible="state in ('done','cancel')"/>
                     <button name="action_draft" string="Chuyển về Nháp" type="object" invisible="state != 'cancel'"/>
@@ -47,11 +52,7 @@
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
-                    <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
-                    <field name="message_ids"/>
-                </div>
+                <chatter/>
             </form>
         </field>
     </record>
@@ -75,7 +76,7 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_packing_request_root" name="Lắp Ráp / Đóng Gói" parent="stock.menu_stock_warehouse_mgmt" sequence="10"/>
-    <menuitem id="menu_packing_request" name="Yêu Cầu Lắp Ráp" parent="menu_packing_request_root" action="action_packing_request" sequence="1"/>
-    <menuitem id="menu_assembly_record" name="Lịch Sử Lắp Ráp" parent="menu_packing_request_root" action="action_assembly_record" sequence="2"/>
+    <!-- Menu riêng dưới Stock/Inventory gốc đã xoá: 2 menu action_packing_request
+         và action_assembly_record giờ được host ngay trong cây STI qua override
+         t4_sti.menu_assembly + t4_sti.menu_assembly_history (views/menus.xml). -->
 </odoo>
