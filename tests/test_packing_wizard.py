@@ -16,7 +16,6 @@ class TestPackingWizard(TransactionCase):
             'name': 'FG Product Test',
             'is_storable': True,
             'tracking': 'serial',
-            'is_combo': True,
         })
         # Linh kiện
         cls.comp_product = cls.env['product.product'].create({

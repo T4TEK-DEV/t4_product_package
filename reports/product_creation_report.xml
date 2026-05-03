@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Phiếu Lắp Ráp / Định Danh — QWeb PDF reports.
+    Port từ v18 STIs/reports/product_creation_wizard_report.xml.
+
+    Field mapping v18 → v19:
+      doc.id (mã phiếu)              → doc.name
+      component.supplier_part_id_temp → component.brand_part_id
+      component.manufacturer_part_id_temp → component.manufacturer_part_id
+      component.categ_tech_id        → bỏ (không có trên line v19)
+      doc.product_id.tracking_type_conf_code → doc.product_id.tracking
+      state == 'have_card'           → bỏ (không có state này v19)
+
+    2 report tách rời theo type:
+      - assembly: PHIẾU LẮP RÁP SẢN PHẨM (có thêm bảng linh kiện trả)
+      - identify: PHIẾU ĐỊNH DANH LK TP (chỉ có linh kiện sử dụng + cột S/N)
+-->
+<odoo>
+    <!-- ============================================================
+         Paper format A4 portrait (chia sẻ chung)
+         ============================================================ -->
+    <record id="paperformat_t4_product_creation" model="report.paperformat">
+        <field name="name">A4 Portrait — Phiếu Lắp Ráp/Định Danh</field>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">40</field>
+        <field name="margin_bottom">23</field>
+        <field name="margin_left">7</field>
+        <field name="margin_right">7</field>
+        <field name="header_spacing">35</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- ============================================================
+         REPORT 1 — Phiếu Lắp Ráp (type='assembly')
+         ============================================================ -->
+    <record id="action_report_t4_product_creation_assembly" model="ir.actions.report">
+        <field name="name">Phiếu Lắp Ráp</field>
+        <field name="model">t4.product.creation</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">t4_product_package.report_t4_product_creation_assembly_template</field>
+        <field name="report_file">t4_product_package.report_t4_product_creation_assembly_template</field>
+        <field name="binding_model_id" ref="model_t4_product_creation"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_t4_product_creation"/>
+    </record>
+
+    <template id="report_t4_product_creation_assembly_template">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <t t-foreach="docs" t-as="doc">
+                    <div class="page">
+                        <style>
+                            @page { size: A4 portrait; margin: 10mm; }
+                            body { font-family: "Times New Roman", serif; font-size: 10pt; margin: 0; }
+                            .page { width: 100%; height: 100%; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { border: 1px solid black; padding: 4px; text-align: center; vertical-align: middle; }
+                            .info-table { width: 100%; }
+                            .info-table td { border: none; text-align: left; padding: 8px 0; }
+                            .page-break { page-break-before: always; }
+                        </style>
+
+                        <!-- Header -->
+                        <div class="text-center mb-4">
+                            <h2 style="border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; font-size: 24pt; font-weight: bold;">
+                                PHIẾU LẮP RÁP SẢN PHẨM
+                            </h2>
+                        </div>
+
+                        <!-- Thông tin chung -->
+                        <div class="mb-4">
+                            <table class="info-table">
+                                <tr>
+                                    <td style="width: 15%; font-weight: bold;">Mã phiếu:</td>
+                                    <td style="width: 18%;"><span t-field="doc.name"/></td>
+                                    <td style="width: 15%; font-weight: bold; padding-left: 20px;">Ngày tạo:</td>
+                                    <td style="width: 20%;">
+                                        <span t-field="doc.create_date"
+                                              t-options="{'widget': 'datetime', 'format': 'dd/MM/yyyy HH:mm'}"/>
+                                    </td>
+                                    <td style="width: 17%; font-weight: bold; padding-left: 20px;">Người lắp ráp:</td>
+                                    <td style="width: 15%;"><span t-field="doc.create_uid.name"/></td>
+                                </tr>
+                                <tr style="height: 40px;">
+                                    <td style="font-weight: bold;">Thành phẩm:</td>
+                                    <td><span t-field="doc.product_id.name"/></td>
+                                    <td style="font-weight: bold; padding-left: 20px;">Mã quản lý:</td>
+                                    <td><span t-field="doc.lot_id.name"/></td>
+                                    <td style="font-weight: bold; padding-left: 20px;">Trạng thái:</td>
+                                    <td>
+                                        <span t-if="doc.state == 'draft'">Nháp</span>
+                                        <span t-if="doc.state == 'done'">Hoàn Tất</span>
+                                        <span t-if="doc.state == 'cancel'">Đã Huỷ</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Danh sách linh kiện sử dụng -->
+                        <div class="mb-4">
+                            <h4 style="background-color: #046598; padding: 8px; border-left: 4px solid #012e46; margin-bottom: 15px; color: white;">
+                                DANH SÁCH LINH KIỆN SỬ DỤNG
+                            </h4>
+                            <table class="table table-bordered">
+                                <thead style="background-color: #e9ecef;">
+                                    <tr>
+                                        <th style="width: 5%;">STT</th>
+                                        <th style="width: 35%;">Tên Sản Phẩm</th>
+                                        <th style="width: 15%;">Số Lượng</th>
+                                        <th style="width: 15%;">Brd. S/N</th>
+                                        <th style="width: 15%;">Mfr. S/N</th>
+                                        <th style="width: 15%;">Mã Thẻ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="doc.line_ids" t-as="component">
+                                        <tr>
+                                            <td><span t-esc="component_index + 1"/></td>
+                                            <td style="text-align: left;"><span t-field="component.product_id.name"/></td>
+                                            <td><span t-field="component.quantity"/></td>
+                                            <td><span t-field="component.brand_part_id"/></td>
+                                            <td><span t-field="component.manufacturer_part_id"/></td>
+                                            <td><span t-field="component.card_code"/></td>
+                                        </tr>
+                                    </t>
+                                    <t t-if="not doc.line_ids">
+                                        <tr>
+                                            <td colspan="6" style="text-align: center; font-style: italic; color: #6c757d;">
+                                                Không có linh kiện nào được sử dụng
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Danh sách linh kiện trả (nếu có) -->
+                        <t t-if="doc.line_returned_ids">
+                            <div class="mb-4">
+                                <h4 style="background-color: #c0392b; padding: 8px; border-left: 4px solid #7d2018; margin-bottom: 15px; color: white;">
+                                    DANH SÁCH LINH KIỆN TRẢ
+                                </h4>
+                                <table class="table table-bordered">
+                                    <thead style="background-color: #fff3cd;">
+                                        <tr>
+                                            <th style="width: 5%;">STT</th>
+                                            <th style="width: 35%;">Tên Sản Phẩm</th>
+                                            <th style="width: 15%;">Số Lượng</th>
+                                            <th style="width: 15%;">Hư Hỏng</th>
+                                            <th style="width: 30%;">Ghi Chú</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="doc.line_returned_ids" t-as="returned">
+                                            <tr>
+                                                <td><span t-esc="returned_index + 1"/></td>
+                                                <td style="text-align: left;"><span t-field="returned.product_id.name"/></td>
+                                                <td><span t-field="returned.quantity"/></td>
+                                                <td>
+                                                    <span t-if="returned.is_scrap" style="color: red; font-weight: bold;">✓</span>
+                                                    <span t-if="not returned.is_scrap">—</span>
+                                                </td>
+                                                <td style="text-align: left;"><span t-field="returned.note"/></td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+
+                        <!-- Ký tên -->
+                        <div class="row mt-5" style="margin-top: 50px;">
+                            <div class="col-8"></div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #333; padding-top: 10px; margin-top: 50px; width: 200px;">
+                                    <strong>NGƯỜI LẮP RÁP</strong>
+                                    <br/>
+                                    <span t-field="doc.create_uid.name"/>
+                                    <br/>
+                                    <small>(Ký tên)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ghi chú -->
+                        <div class="mt-4" style="padding-top: 100px;">
+                            <h5 style="border-bottom: 1px solid #333; padding-bottom: 5px;">GHI CHÚ:</h5>
+                            <div style="height: 150px; border: 1px solid #333; margin-top: 10px; padding: 6px;">
+                                <span t-field="doc.note"/>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- ============================================================
+         REPORT 2 — Phiếu Định Danh LK TP (type='identify')
+         ============================================================ -->
+    <record id="action_report_t4_product_creation_identify" model="ir.actions.report">
+        <field name="name">Phiếu Định Danh LK TP</field>
+        <field name="model">t4.product.creation</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">t4_product_package.report_t4_product_creation_identify_template</field>
+        <field name="report_file">t4_product_package.report_t4_product_creation_identify_template</field>
+        <field name="binding_model_id" ref="model_t4_product_creation"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_t4_product_creation"/>
+    </record>
+
+    <template id="report_t4_product_creation_identify_template">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <t t-foreach="docs" t-as="doc">
+                    <div class="page">
+                        <style>
+                            @page { size: A4 portrait; margin: 10mm; }
+                            body { font-family: "Times New Roman", serif; font-size: 10pt; margin: 0; }
+                            .page { width: 100%; height: 100%; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { border: 1px solid black; padding: 4px; text-align: center; vertical-align: middle; }
+                            .info-table { width: 100%; }
+                            .info-table td { border: none; text-align: left; padding: 8px 0; }
+                        </style>
+
+                        <!-- Header -->
+                        <div class="text-center mb-4">
+                            <h2 style="border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; font-size: 22pt; font-weight: bold;">
+                                PHIẾU ĐỊNH DANH LINH KIỆN THÀNH PHẨM
+                            </h2>
+                        </div>
+
+                        <!-- Thông tin chung -->
+                        <div class="mb-4">
+                            <table class="info-table">
+                                <tr>
+                                    <td style="width: 15%; font-weight: bold;">Mã phiếu:</td>
+                                    <td style="width: 18%;"><span t-field="doc.name"/></td>
+                                    <td style="width: 15%; font-weight: bold; padding-left: 20px;">Ngày tạo:</td>
+                                    <td style="width: 20%;">
+                                        <span t-field="doc.create_date"
+                                              t-options="{'widget': 'datetime', 'format': 'dd/MM/yyyy HH:mm'}"/>
+                                    </td>
+                                    <td style="width: 17%; font-weight: bold; padding-left: 20px;">Người định danh:</td>
+                                    <td style="width: 15%;"><span t-field="doc.create_uid.name"/></td>
+                                </tr>
+                                <tr style="height: 40px;">
+                                    <td style="font-weight: bold;">Thành phẩm:</td>
+                                    <td><span t-field="doc.product_id.name"/></td>
+                                    <td style="font-weight: bold; padding-left: 20px;">Mã quản lý:</td>
+                                    <td><span t-field="doc.lot_id.name"/></td>
+                                    <td style="font-weight: bold; padding-left: 20px;">Trạng thái:</td>
+                                    <td>
+                                        <span t-if="doc.state == 'draft'">Nháp</span>
+                                        <span t-if="doc.state == 'done'">Hoàn Tất</span>
+                                        <span t-if="doc.state == 'cancel'">Đã Huỷ</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Danh sách linh kiện sử dụng -->
+                        <div class="mb-4">
+                            <h4 style="background-color: #046598; padding: 8px; border-left: 4px solid #012e46; margin-bottom: 15px; color: white;">
+                                DANH SÁCH LINH KIỆN SỬ DỤNG
+                            </h4>
+                            <table class="table table-bordered">
+                                <thead style="background-color: #e9ecef;">
+                                    <tr>
+                                        <th style="width: 5%;">STT</th>
+                                        <th style="width: 30%;">Tên Sản Phẩm</th>
+                                        <th style="width: 15%;">Số Lượng</th>
+                                        <th style="width: 17%;">Brd. S/N</th>
+                                        <th style="width: 18%;">Mfr. S/N</th>
+                                        <th style="width: 15%;">Mã Thẻ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="doc.line_ids" t-as="component">
+                                        <tr>
+                                            <td><span t-esc="component_index + 1"/></td>
+                                            <td style="text-align: left;"><span t-field="component.product_id.name"/></td>
+                                            <td><span t-field="component.quantity"/></td>
+                                            <td><span t-field="component.brand_part_id"/></td>
+                                            <td><span t-field="component.manufacturer_part_id"/></td>
+                                            <td><span t-field="component.card_code"/></td>
+                                        </tr>
+                                    </t>
+                                    <t t-if="not doc.line_ids">
+                                        <tr>
+                                            <td colspan="6" style="text-align: center; font-style: italic; color: #6c757d;">
+                                                Không có linh kiện nào được sử dụng
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Ký tên -->
+                        <div class="row mt-5" style="margin-top: 50px;">
+                            <div class="col-8"></div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #333; padding-top: 10px; margin-top: 50px; width: 200px;">
+                                    <strong>NGƯỜI ĐỊNH DANH</strong>
+                                    <br/>
+                                    <span t-field="doc.create_uid.name"/>
+                                    <br/>
+                                    <small>(Ký tên)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ghi chú -->
+                        <div class="mt-4" style="padding-top: 100px;">
+                            <h5 style="border-bottom: 1px solid #333; padding-bottom: 5px;">GHI CHÚ:</h5>
+                            <div style="height: 150px; border: 1px solid #333; margin-top: 10px; padding: 6px;">
+                                <span t-field="doc.note"/>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

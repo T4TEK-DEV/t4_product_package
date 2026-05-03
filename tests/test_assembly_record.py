@@ -14,7 +14,6 @@ class TestAssemblyRecord(TransactionCase):
             'name': 'Laptop FG',
             'is_storable': True,
             'tracking': 'serial',
-            'is_combo': True,
         })
         cls.comp_a = cls.env['product.product'].create({
             'name': 'Comp A',

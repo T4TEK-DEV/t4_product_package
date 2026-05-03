@@ -10,22 +10,20 @@
     'category': 'Inventory/Warehouse',
     'author': 'T4TEK-DEV',
     'license': 'LGPL-3',
-    'depends': ['stock', 'sale_stock', 'mail', 't4_sti'],
+    'depends': ['stock', 'sale_stock', 'mail'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
         # 2. Data (sequences)
         'data/sequence_data.xml',
-        # 3. Wizard
-        'wizard/packing_slip_wizard_views.xml',
+        # 3. Reports (load TRƯỚC views vì action_print dùng env.ref report)
+        'reports/product_creation_report.xml',
         # 4. Views
         'views/product_component_views.xml',
-        'views/assembly_record_views.xml',
+        'views/product_creation_views.xml',
         'views/product_template_views.xml',
         'views/packing_request_views.xml',
         'views/stock_picking_views.xml',
-        # 5. Menus (cuối cùng, sau tất cả actions)
-        'views/menus.xml',
     ],
     'installable': True,
     'application': False,
