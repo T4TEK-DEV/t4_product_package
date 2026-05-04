@@ -97,11 +97,11 @@
                             <field name="total_standard_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
                             <field name="total_list_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                         </group>
                     </group>
 
@@ -162,21 +162,21 @@
                                 <field name="standard_price"
                                        widget="monetary"
                                        readonly="parent_state == 'done'"
-                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
                                 <field name="list_price"
                                        widget="monetary"
                                        readonly="parent_state == 'done'"
-                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                                 <field name="total_standard_price"
                                        widget="monetary"
                                        sum="Tổng GV"
                                        optional="hide"
-                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
                                 <field name="total_list_price"
                                        widget="monetary"
                                        sum="Tổng GK"
                                        optional="hide"
-                                       groups="t4_sti.group_manager,t4_sti.group_purchase,t4_sti.group_accounting"/>
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                             </list>
                         </field>

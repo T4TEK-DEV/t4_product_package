@@ -42,8 +42,10 @@
                 <field name="date"/>
                 <field name="product_id"/>
                 <field name="lot_id"/>
-                <field name="total_standard_price" string="Tổng Giá Vốn"/>
-                <field name="total_list_price" string="Tổng Giá Kho"/>
+                <field name="total_standard_price" string="Tổng Giá Vốn"
+                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                <field name="total_list_price" string="Tổng Giá Kho"
+                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                 <field name="packing_request_id" optional="hide"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'done'"
@@ -94,16 +96,22 @@
                                     <field name="lot_id"/>
                                     <field name="quantity"/>
                                     <field name="product_uom_id"/>
-                                    <field name="standard_price" string="Giá Vốn"/>
-                                    <field name="list_price" string="Giá Kho"/>
-                                    <field name="total_standard_price" string="Tổng GV" sum="Tổng"/>
-                                    <field name="total_list_price" string="Tổng GK" sum="Tổng"/>
+                                    <field name="standard_price" string="Giá Vốn"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                    <field name="list_price" string="Giá Kho"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
+                                    <field name="total_standard_price" string="Tổng GV" sum="Tổng"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                    <field name="total_list_price" string="Tổng GK" sum="Tổng"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                                     <field name="note"/>
                                 </list>
                             </field>
                             <group class="oe_subtotal_footer oe_right">
-                                <field name="total_standard_price" string="Tổng Giá Vốn"/>
-                                <field name="total_list_price" string="Tổng Giá Kho"/>
+                                <field name="total_standard_price" string="Tổng Giá Vốn"
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                <field name="total_list_price" string="Tổng Giá Kho"
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                             </group>
                         </page>
                         <page name="notes" string="Ghi Chú">
