@@ -50,8 +50,7 @@ class ProductCreation(models.Model):
         tracking=True,
         copy=False,
         index=True,
-        help='assembly: lắp ráp thành phẩm mới. '
-             'identify: định danh linh kiện thành phẩm hiện có.',
+        help='Chọn mục đích của phiếu: lắp ráp thành phẩm mới hoặc định danh lại linh kiện cho thành phẩm đã có sẵn.',
     )
     state = fields.Selection(
         selection=[

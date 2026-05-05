@@ -36,7 +36,7 @@ class AssemblyRecord(models.Model):
         'stock.lot',
         string='Mã Serial/Lot Thành Phẩm',
         index=True,
-        help='Serial/Lot của thành phẩm được tạo ra.',
+        help='Mã sê-ri hoặc số lô của thành phẩm được tạo ra.',
     )
     packing_request_id = fields.Many2one(
         'packing.request',

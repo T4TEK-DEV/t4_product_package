@@ -12,8 +12,7 @@ class PackingSlipWizard(models.TransientModel):
         'product.product',
         string='Thành Phẩm',
         domain="[('tracking', '=', 'serial')]",
-        help='Sản phẩm thành phẩm (serial) sẽ được tạo ra từ linh kiện đã quét. '
-             'Mọi sản phẩm serial đều có thể đóng vai trò Thành Phẩm.',
+        help='Sản phẩm hoàn chỉnh sẽ được tạo ra từ các linh kiện đã quét. Bất kỳ sản phẩm nào được quản lý theo số sê-ri đều có thể được coi là sản phẩm hoàn chỉnh.',
     )
     barcode_input = fields.Char(string='Quét Mã Vạch')
     line_ids = fields.One2many('packing.slip.wizard.line', 'wizard_id', string='Linh Kiện Đã Quét')

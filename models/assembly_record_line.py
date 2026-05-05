@@ -20,7 +20,7 @@ class AssemblyRecordLine(models.Model):
     lot_id = fields.Many2one(
         'stock.lot',
         string='Mã Serial/Lot',
-        help='Serial/Lot của linh kiện sử dụng.',
+        help='Mã sê-ri hoặc số lô của linh kiện sử dụng.',
     )
     quantity = fields.Float(
         string='Số Lượng',

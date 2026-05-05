@@ -34,8 +34,7 @@ class ProductCreationLine(models.Model):
         required=True,
         default='used',
         index=True,
-        help='used: linh kiện đã dùng để lắp ráp. '
-             'returned: linh kiện bị trả lại / thay thế.',
+        help='Phân loại linh kiện: đã sử dụng để lắp ráp, hoặc bị trả lại/thay thế.',
     )
     # Related to make domain/invisible on view simpler
     wizard_type = fields.Selection(related='creation_id.type', store=False)
@@ -76,12 +75,12 @@ class ProductCreationLine(models.Model):
     standard_price = fields.Float(
         string='Giá Vốn',
         digits='Product Price',
-        help='Snapshot giá vốn linh kiện tại thời điểm tạo phiếu.',
+        help='Lưu trữ giá vốn của linh kiện tại thời điểm tạo phiếu.',
     )
     list_price = fields.Float(
         string='Giá Kho',
         digits='Product Price',
-        help='Snapshot giá kho linh kiện tại thời điểm tạo phiếu.',
+        help='Lưu trữ giá kho của linh kiện tại thời điểm tạo phiếu.',
     )
     cost_currency_id = fields.Many2one(
         related='creation_id.cost_currency_id',
@@ -105,11 +104,11 @@ class ProductCreationLine(models.Model):
     # ------------------------------------------------------------------
     barcode_input = fields.Char(
         string='Barcode',
-        help='Barcode user nhập tay / scanner gửi vào dòng này.',
+        help='Mã vạch do người dùng nhập hoặc từ máy quét.',
     )
     card_code = fields.Char(
         string='Mã Thẻ',
-        help='Mã thẻ RFID gắn cho dòng này.',
+        help='Mã thẻ RFID được gắn cho dòng thông tin này.',
     )
 
     # ------------------------------------------------------------------
@@ -121,11 +120,11 @@ class ProductCreationLine(models.Model):
     # ------------------------------------------------------------------
     brand_part_id = fields.Char(
         string='Brd. S/N',
-        help='Số serial do nhãn hiệu / nhà cung cấp cấp.',
+        help='Số sê-ri do nhãn hiệu hoặc nhà cung cấp phân bổ.',
     )
     manufacturer_part_id = fields.Char(
         string='Mnf. S/N',
-        help='Số serial do nhà sản xuất cấp.',
+        help='Số sê-ri do nhà sản xuất phân bổ.',
     )
 
     # ------------------------------------------------------------------
@@ -134,8 +133,7 @@ class ProductCreationLine(models.Model):
     is_scrap = fields.Boolean(
         string='Hư Hỏng',
         default=False,
-        help='Linh kiện trả lại trong tình trạng hư hỏng — sẽ chuyển vào '
-             'kho hư hỏng thay vì kho thường.',
+        help='Đánh dấu nếu linh kiện trả lại bị hư hỏng, hệ thống sẽ tự động chuyển vào kho phế phẩm.',
     )
     note = fields.Char(string='Ghi Chú')
 
