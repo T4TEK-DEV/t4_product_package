@@ -86,12 +86,34 @@ class ProductCreation(models.Model):
     )
     lot_id = fields.Many2one(
         'stock.lot',
-        string='Mã Quản Lý Thành Phẩm',
+        string='Lot Thành Phẩm',
         copy=False,
         tracking=True,
         domain="[('product_id', '=', product_id)]",
         help='Lot/Serial gắn cho thành phẩm. Với type=assembly sẽ tự '
              'tạo khi xác nhận; với type=identify user chọn lot có sẵn.',
+    )
+    lot_name = fields.Char(
+        string='Mã Quản Lý Thành Phẩm',
+        copy=False,
+        tracking=True,
+        help='Tên lot/serial của thành phẩm. Nhập hoặc quét trực tiếp — '
+             'hệ thống tự tìm lot có sẵn (type=identify) hoặc tạo lot mới '
+             'khi xác nhận (type=assembly).',
+    )
+    brand_part_id = fields.Char(
+        string='Brd. S/N',
+        related='lot_id.brand_part_id',
+        readonly=True,
+        store=False,
+        help='S/N do Nhãn hiệu cấp cho lot thành phẩm.',
+    )
+    manufacturer_part_id = fields.Char(
+        string='Mfr. S/N',
+        related='lot_id.manufacturer_part_id',
+        readonly=True,
+        store=False,
+        help='S/N do Nhà Sản Xuất cấp cho lot thành phẩm.',
     )
     company_id = fields.Many2one(
         'res.company',
@@ -110,16 +132,6 @@ class ProductCreation(models.Model):
         index=True,
         help='Liên kết tới phiếu yêu cầu lắp ráp (nếu có) để tự động '
              'cập nhật qty_packed khi xác nhận.',
-    )
-
-    # ------------------------------------------------------------------
-    # Scan input (header-level barcode/scan)
-    # ------------------------------------------------------------------
-    barcode_input = fields.Char(
-        string='Quét Mã Vạch',
-        copy=False,
-        help='Nhập / scan mã linh kiện. Click nút "Quét" để xử lý — '
-             'hệ thống tự tìm lot → product → tạo dòng tương ứng.',
     )
 
     # ------------------------------------------------------------------
@@ -167,16 +179,24 @@ class ProductCreation(models.Model):
         store=False,
     )
     total_standard_price = fields.Monetary(
-        string='Tổng Giá Vốn',
+        string='Giá Mua (BOM)',
         currency_field='cost_currency_id',
         compute='_compute_totals',
         store=True,
+        help='Tổng giá vốn của toàn bộ linh kiện trong BOM (snapshot).',
     )
     total_list_price = fields.Monetary(
         string='Tổng Giá Kho',
         currency_field='cost_currency_id',
         compute='_compute_totals',
         store=True,
+    )
+    purchase_price = fields.Monetary(
+        string='Giá Mua',
+        currency_field='cost_currency_id',
+        compute='_compute_purchase_price',
+        store=False,
+        help='Giá vốn (standard_price) của thành phẩm tại thời điểm hiển thị.',
     )
 
     @api.depends('company_id')
@@ -194,6 +214,38 @@ class ProductCreation(models.Model):
                 rec.line_ids.mapped('total_list_price')
             )
 
+    @api.depends('product_id.standard_price')
+    def _compute_purchase_price(self):
+        for rec in self:
+            rec.purchase_price = rec.product_id.standard_price or 0.0
+
+    # ------------------------------------------------------------------
+    # Onchange — auto-resolve lot_name → lot_id khi user nhập tên lot
+    # ------------------------------------------------------------------
+    @api.onchange('lot_name', 'product_id')
+    def _onchange_lot_name(self):
+        """Khi user nhập lot_name, tự tìm lot khớp tên + product để set lot_id.
+
+        Logic:
+          - Có lot khớp → set lot_id (Brd/Mfr S/N tự load từ related).
+          - Không khớp → giữ lot_name; lot_id sẽ được tạo (assembly) hoặc
+            báo lỗi (identify) tại action_confirm.
+        """
+        if not self.lot_name or not self.product_id:
+            return
+        lot = self.env['stock.lot'].search([
+            ('name', '=', self.lot_name.strip()),
+            ('product_id', '=', self.product_id.id),
+        ], limit=1)
+        if lot:
+            self.lot_id = lot
+
+    @api.onchange('lot_id')
+    def _onchange_lot_id(self):
+        """Sync ngược lot_id → lot_name khi user pick lot từ dropdown ẩn."""
+        if self.lot_id and self.lot_id.name != self.lot_name:
+            self.lot_name = self.lot_id.name
+
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
@@ -206,68 +258,6 @@ class ProductCreation(models.Model):
                 ) or _('New')
                 vals['name'] = seq
         return super().create(vals_list)
-
-    # ------------------------------------------------------------------
-    # Scan logic — port từ packing.slip.wizard.action_scan_barcode
-    # ------------------------------------------------------------------
-    def action_scan_barcode(self):
-        """Xử lý barcode_input — thêm dòng linh kiện tương ứng."""
-        self.ensure_one()
-        if not self.barcode_input:
-            return False
-        barcode = self.barcode_input.strip()
-        if not barcode:
-            self.barcode_input = False
-            return False
-
-        # Ưu tiên 1: tìm lot/serial có sẵn (định danh đã tồn tại)
-        lot = self.env['stock.lot'].search(
-            [('name', '=', barcode)], limit=1,
-        )
-        if lot:
-            self._add_line_from_lot(lot)
-            self.barcode_input = False
-            return True
-
-        # Ưu tiên 2: tìm product theo barcode
-        product = self.env['product.product'].search(
-            [('barcode', '=', barcode)], limit=1,
-        )
-        if not product:
-            # Ưu tiên 3: default_code (mã sản phẩm nội bộ)
-            product = self.env['product.product'].search(
-                [('default_code', '=', barcode)], limit=1,
-            )
-        if product:
-            self._add_line_from_product(product)
-            self.barcode_input = False
-            return True
-
-        raise UserError(_(
-            'Không tìm thấy lot/serial hoặc sản phẩm tương ứng với mã: %s',
-            barcode,
-        ))
-
-    def _add_line_from_lot(self, lot):
-        """Thêm dòng từ stock.lot — auto-fill product + snapshot price."""
-        self.line_ids = [(0, 0, {
-            'line_type': 'used',
-            'product_id': lot.product_id.id,
-            'lot_id': lot.id,
-            'quantity': 1.0,
-            'standard_price': lot.product_id.standard_price,
-            'list_price': lot.product_id.lst_price,
-        })]
-
-    def _add_line_from_product(self, product):
-        """Thêm dòng từ product (chưa có lot — tracking='none' hoặc lot mới)."""
-        self.line_ids = [(0, 0, {
-            'line_type': 'used',
-            'product_id': product.id,
-            'quantity': 1.0,
-            'standard_price': product.standard_price,
-            'list_price': product.lst_price,
-        })]
 
     # ------------------------------------------------------------------
     # Workflow actions
@@ -287,11 +277,35 @@ class ProductCreation(models.Model):
                     'Phiếu phải có ít nhất 1 dòng linh kiện trước khi xác nhận.'
                 ))
 
+            # Resolve lot_name → lot_id (find existing or create for assembly).
+            if rec.lot_name and not rec.lot_id:
+                lot = self.env['stock.lot'].search([
+                    ('name', '=', rec.lot_name.strip()),
+                    ('product_id', '=', rec.product_id.id),
+                ], limit=1)
+                if lot:
+                    rec.lot_id = lot
+                elif rec.type == 'assembly' and rec.product_id.tracking == 'serial':
+                    rec.lot_id = self.env['stock.lot'].create({
+                        'name': rec.lot_name.strip(),
+                        'product_id': rec.product_id.id,
+                        'company_id': rec.company_id.id,
+                    })
+                else:
+                    raise UserError(_(
+                        'Không tìm thấy Mã Quản Lý "%(name)s" cho thành phẩm '
+                        '"%(product)s". Vui lòng kiểm tra lại.',
+                        name=rec.lot_name,
+                        product=rec.product_id.display_name,
+                    ))
+
             if rec.type == 'assembly' and not rec.lot_id and rec.product_id.tracking == 'serial':
                 rec.lot_id = self.env['stock.lot'].create({
                     'product_id': rec.product_id.id,
                     'company_id': rec.company_id.id,
                 })
+                if not rec.lot_name:
+                    rec.lot_name = rec.lot_id.name
 
             if rec.type == 'identify' and not rec.lot_id:
                 raise UserError(_(

@@ -35,11 +35,6 @@
                             class="btn"
                             icon="fa-print"
                             invisible="not line_ids and not line_returned_ids"/>
-                    <button name="action_scan_barcode"
-                            string="Quét Mã"
-                            type="object"
-                            class="oe_highlight"
-                            invisible="state == 'done' or not barcode_input"/>
                     <button name="action_confirm"
                             string="Xác Nhận"
                             type="object"
@@ -58,6 +53,8 @@
                 </header>
 
                 <sheet>
+                    <field name="lot_id" invisible="1"/>
+
                     <div class="oe_title">
                         <h1>
                             <field name="product_id"
@@ -72,36 +69,30 @@
 
                     <group>
                         <group>
-                            <field name="name" readonly="1"/>
-                            <field name="lot_id"
-                                   string="Mã Quản Lý Thành Phẩm"
-                                   readonly="state == 'done' or type == 'assembly'"
-                                   options="{'no_open': 1, 'no_create': 1}"
-                                   help="Type=assembly: tự tạo khi xác nhận. Type=identify: chọn lot có sẵn."/>
+                            <field name="lot_name"
+                                   readonly="state == 'done'"
+                                   placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
                             <field name="create_uid"
+                                   string="Người Tạo"
                                    options="{'no_open': 1, 'no_create': 1}"
                                    readonly="1"/>
-                            <field name="create_date" readonly="1"/>
+                            <field name="create_date" string="Ngày Tạo" readonly="1"/>
                         </group>
                         <group>
                             <field name="company_id"
-                                   groups="base.group_multi_company"
+                                   string="Công ty"
                                    readonly="1"
                                    options="{'no_create': 1, 'no_open': 1}"/>
-                            <field name="packing_request_id"
-                                   readonly="state == 'done'"
-                                   options="{'no_open': 1, 'no_create': 1}"/>
-                            <field name="barcode_input"
-                                   placeholder="Quét hoặc nhập barcode/serial..."
-                                   readonly="state == 'done'"/>
+                            <field name="brand_part_id" readonly="1"/>
+                            <field name="manufacturer_part_id" readonly="1"/>
+                            <field name="purchase_price"
+                                   widget="monetary"
+                                   readonly="1"
+                                   groups="t4_sti.group_stocker,t4_sti.group_accounting,t4_sti.group_manager"/>
                             <field name="total_standard_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
-                            <field name="total_list_price"
-                                   widget="monetary"
-                                   readonly="1"
-                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
+                                   groups="t4_sti.group_stocker,t4_sti.group_accounting,t4_sti.group_manager"/>
                         </group>
                     </group>
 
@@ -119,7 +110,7 @@
                            class="oe_group_border">
                         <field name="line_ids"
                                nolabel="1"
-                               readonly="state == 'done' or not lot_id"
+                               readonly="state == 'done' or (not lot_name and not lot_id)"
                                context="{
                                    'default_line_type': 'used',
                                    'wizard_type': type,
@@ -192,7 +183,7 @@
                             <group string="Linh Kiện Sử Dụng" class="oe_group_border">
                                 <field name="line_ids"
                                        nolabel="1"
-                                       readonly="state == 'done' or not lot_id and type == 'assembly'"
+                                       readonly="state == 'done' or (type == 'assembly' and not lot_name and not lot_id)"
                                        context="{
                                            'default_line_type': 'used',
                                            'wizard_type': type,
@@ -237,7 +228,7 @@
                             <group string="Linh Kiện Trả" class="oe_group_border">
                                 <field name="line_returned_ids"
                                        nolabel="1"
-                                       readonly="state == 'done' or not lot_id"
+                                       readonly="state == 'done' or (not lot_name and not lot_id)"
                                        context="{'default_line_type': 'returned', 'wizard_type': type}">
                                     <list editable="bottom" create="true" delete="true"
                                           decoration-warning="not is_scrap"
@@ -359,7 +350,10 @@
     <!-- ============================================================
          ACTIONS — Lắp Ráp (type='assembly')
          ============================================================ -->
-    <!-- Tạo phiếu lắp ráp mới (form trực tiếp) — gắn vào menu Lắp Ráp -->
+    <!-- Tạo phiếu lắp ráp mới (form trực tiếp) — gắn vào menu Lắp Ráp.
+         t4_passive_buttons render nút "Quét RFID" trên status bar (do
+         t4_passivehid_bridge patch StatusBarButtons). Bridge optional —
+         nếu module bridge không cài, context bị bỏ qua (graceful). -->
     <record id="action_t4_product_creation_assembly_new" model="ir.actions.act_window">
         <field name="name">Lắp Ráp</field>
         <field name="res_model">t4.product.creation</field>
@@ -370,6 +364,15 @@
             'default_type': 'assembly',
             'create': 1,
             'breadcrumb_name': 'Phiếu Lắp Ráp',
+            't4_passive_buttons': [{
+                'id': 'rfid_reader',
+                'title': 'Quét RFID',
+                'icon': 'fa-rss',
+                'position': 'status_bar',
+                'url': 'ws://localhost:9001',
+                'toggle': False,
+                'timeout': 2000,
+            }],
         }</field>
     </record>
 
@@ -417,6 +420,15 @@
             'default_type': 'identify',
             'create': 1,
             'breadcrumb_name': 'Phiếu Định Danh LK TP',
+            't4_passive_buttons': [{
+                'id': 'rfid_reader',
+                'title': 'Quét RFID',
+                'icon': 'fa-rss',
+                'position': 'status_bar',
+                'url': 'ws://localhost:9001',
+                'toggle': False,
+                'timeout': 2000,
+            }],
         }</field>
     </record>
 

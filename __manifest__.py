@@ -10,7 +10,7 @@
     'category': 'Inventory/Warehouse',
     'author': 'T4TEK-DEV',
     'license': 'LGPL-3',
-    'depends': ['stock', 'sale_stock', 'mail'],
+    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
