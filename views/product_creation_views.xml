@@ -372,6 +372,7 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'barcode_input',
             }],
         }</field>
     </record>
@@ -428,6 +429,7 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'barcode_input',
             }],
         }</field>
     </record>
