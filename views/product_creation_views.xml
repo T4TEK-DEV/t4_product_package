@@ -59,8 +59,9 @@
                         <h1>
                             <field name="product_id"
                                    placeholder="Thành phẩm..."
-                                   readonly="state == 'done' or line_ids or line_returned_ids"
-                                   options="{'no_open': 1, 'no_create': 1}"/>
+                                   readonly="True"
+                                   force_save="1"
+                                   options="{'no_open': True, 'no_create': True}"/>
                         </h1>
                         <h3>
                             <field name="product_name" readonly="1"/>
@@ -69,10 +70,6 @@
 
                     <group>
                         <group>
-                            <field name="product_tmpl_id"
-                                   readonly="True"
-                                   force_save="1"
-                                   options="{'no_open': True, 'no_create': True}"/>
                             <field name="lot_name"
                                    readonly="state == 'done'"
                                    placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
@@ -136,26 +133,13 @@
                                        options="{'no_open': 1, 'no_create': 1}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
-                                       readonly="parent_state == 'done' or tracking == 'serial'"/>
+                                       column_invisible="not context.get('tracking_no_active')"
+                                       readonly="parent_state == 'done' or tracking == 'serial'"
+                                       force_save="1"/>
                                 <field name="lot_id"
                                        string="Mã Quản Lý"
                                        readonly="parent_state == 'done'"
                                        options="{'no_open': 1, 'no_create': 1}"/>
-                                <field name="brand_part_id"
-                                       string="Brd. S/N"
-                                       data-auto-input-order="0"
-                                       readonly="parent_state == 'done'"/>
-                                <field name="manufacturer_part_id"
-                                       string="Mnf. S/N"
-                                       data-auto-input-order="1"
-                                       readonly="parent_state == 'done'"/>
-                                <field name="barcode_input"
-                                       string="Barcode"
-                                       data-auto-input-order="2"
-                                       readonly="parent_state == 'done'"/>
-                                <field name="card_code"
-                                       string="Mã Thẻ"
-                                       readonly="parent_state == 'done'"/>
                                 <field name="standard_price"
                                        widget="monetary"
                                        readonly="parent_state == 'done'"
