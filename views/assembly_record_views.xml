@@ -40,7 +40,7 @@
                   decoration-muted="state == 'cancel'">
                 <field name="name"/>
                 <field name="date"/>
-                <field name="product_id"/>
+                <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                 <field name="lot_id"/>
                 <field name="total_standard_price" string="Tổng Giá Vốn"
                        groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
@@ -79,7 +79,7 @@
                     </div>
                     <group>
                         <group string="Thông Tin Thành Phẩm">
-                            <field name="product_id"/>
+                            <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                             <field name="lot_id"/>
                             <field name="date"/>
                         </group>
@@ -92,7 +92,7 @@
                         <page name="components" string="Chi Tiết Linh Kiện">
                             <field name="line_ids">
                                 <list editable="bottom">
-                                    <field name="product_id"/>
+                                    <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                     <field name="lot_id"/>
                                     <field name="quantity"/>
                                     <field name="product_uom_id"/>

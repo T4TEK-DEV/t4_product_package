@@ -61,7 +61,8 @@
                                    placeholder="Thành phẩm..."
                                    readonly="True"
                                    force_save="1"
-                                   options="{'no_open': True, 'no_create': True}"/>
+                                   options="{'no_open': True, 'no_create': True}"
+                                   context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                         </h1>
                         <h3>
                             <field name="product_name" readonly="1"/>
@@ -130,7 +131,8 @@
                                        string="Sản Phẩm"
                                        required="1"
                                        readonly="parent_state == 'done'"
-                                       options="{'no_open': 1, 'no_create': 1}"/>
+                                       options="{'no_open': 1, 'no_create': 1}"
+                                       context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
                                        column_invisible="not context.get('tracking_no_active')"
@@ -203,7 +205,8 @@
                                                string="Sản Phẩm"
                                                required="1"
                                                readonly="parent_state == 'done'"
-                                               options="{'no_open': 1, 'no_create': 1}"/>
+                                               options="{'no_open': 1, 'no_create': 1}"
+                                               context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
                                                string="Số Lượng"
                                                readonly="parent_state == 'done' or tracking == 'serial'"/>
@@ -246,7 +249,8 @@
                                                string="Sản Phẩm"
                                                required="1"
                                                readonly="parent_state == 'done'"
-                                               options="{'no_open': 1, 'no_create': 1}"/>
+                                               options="{'no_open': 1, 'no_create': 1}"
+                                               context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
                                                string="Số Lượng"
                                                readonly="parent_state == 'done' or tracking == 'serial'"/>
@@ -303,7 +307,7 @@
                   decoration-muted="state == 'cancel'">
                 <field name="create_date" string="Ngày Tạo"/>
                 <field name="name"/>
-                <field name="product_id"/>
+                <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                 <field name="lot_id" options="{'no_open': 1, 'no_create': 1}"/>
                 <field name="type" widget="badge"
                        decoration-info="type == 'assembly'"

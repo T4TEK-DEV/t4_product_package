@@ -24,7 +24,7 @@
                         <page string="Linh kiện đã quét">
                             <field name="line_ids">
                                 <list editable="bottom">
-                                    <field name="product_id"/>
+                                    <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                     <field name="lot_id"/>
                                     <field name="qty"/>
                                     <field name="standard_price" string="Giá Vốn"
