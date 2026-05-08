@@ -82,6 +82,7 @@
                             <field name="company_id"
                                    string="Công ty"
                                    readonly="1"
+                                   groups="base.group_multi_company"
                                    options="{'no_create': 1, 'no_open': 1}"/>
                             <field name="brand_part_id" readonly="1"/>
                             <field name="manufacturer_part_id" readonly="1"/>
