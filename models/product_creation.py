@@ -17,7 +17,7 @@ Cả 2 type dùng chung view list/form (form ẩn/hiện section theo type).
 import logging
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -219,6 +219,17 @@ class ProductCreation(models.Model):
     def _compute_purchase_price(self):
         for rec in self:
             rec.purchase_price = rec.product_id.standard_price or 0.0
+
+    # ------------------------------------------------------------------
+    # Constraints
+    # ------------------------------------------------------------------
+    @api.constrains('line_ids', 'type')
+    def _check_identify_single_used_line(self):
+        for rec in self:
+            if rec.type == 'identify' and len(rec.line_ids) > 1:
+                raise ValidationError(_(
+                    'Phiếu Định Danh chỉ cho phép 1 dòng Linh Kiện Sử Dụng.'
+                ))
 
     # ------------------------------------------------------------------
     # Onchange — auto-resolve lot_name → lot_id khi user nhập tên lot

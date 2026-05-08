@@ -140,6 +140,18 @@
                                        string="Mã Quản Lý"
                                        readonly="parent_state == 'done'"
                                        options="{'no_open': 1, 'no_create': 1}"/>
+                                <field name="brand_part_id"
+                                       string="Brd. S/N"
+                                       column_invisible="not context.get('is_have_brand')"
+                                       required="context.get('is_have_brand') and not manufacturer_part_id"
+                                       data-auto-input-order="0"
+                                       readonly="parent_state == 'done'"/>
+                                <field name="manufacturer_part_id"
+                                       string="Mnf. S/N"
+                                       column_invisible="not context.get('is_have_manufacturer')"
+                                       required="context.get('is_have_manufacturer') and not brand_part_id"
+                                       data-auto-input-order="1"
+                                       readonly="parent_state == 'done'"/>
                                 <field name="standard_price"
                                        widget="monetary"
                                        readonly="parent_state == 'done'"
