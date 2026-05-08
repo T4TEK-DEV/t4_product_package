@@ -290,11 +290,14 @@
                                         icon="fa-download"
                                         class="btn btn-secondary"/>
                             </div>
+                            <!-- image_tracking readonly tuyệt đối: path duy nhất
+                                 để set là wizard `t4.product.creation.sign.wizard`,
+                                 mở khi action_confirm gặp config require_print. -->
                             <field name="image_tracking"
                                    widget="image"
                                    filename="image_tracking_filename"
                                    options="{'size': [600, 0]}"
-                                   readonly="state == 'done'"/>
+                                   readonly="1"/>
                         </page>
                     </notebook>
                 </sheet>

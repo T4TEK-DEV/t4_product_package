@@ -297,7 +297,16 @@ class ProductCreation(models.Model):
         Với type='assembly': tự tạo lot mới cho FG nếu chưa có và FG
         là tracking='serial'. Đồng bộ qty_packed lên packing_request_id
         nếu liên kết.
+
+        Sign-wizard intercept (mirror stock.picking.button_validate):
+            - Đọc flag `is_required_print_assembly|identify` từ context
+              (do `t4_sti.ir_http.session_info` inject vào user_context).
+            - Nếu type tương ứng require print: enforce `is_have_printed`
+              và mở wizard upload ảnh nếu chưa có attachment.
+            - Wizard re-call method này với `t4_bypass_sign_wizard=True`.
         """
+        ctx = self.env.context
+        bypass_wizard = ctx.get('t4_bypass_sign_wizard')
         for rec in self:
             if rec.state == 'done':
                 continue
@@ -305,6 +314,27 @@ class ProductCreation(models.Model):
                 raise UserError(_(
                     'Phiếu phải có ít nhất 1 dòng linh kiện trước khi xác nhận.'
                 ))
+
+            # Sign-wizard intercept — chỉ chạy cho phiếu thật sự require print.
+            if not bypass_wizard:
+                requires_sign = (
+                    (rec.type == 'assembly' and ctx.get('is_required_print_assembly'))
+                    or (rec.type == 'identify' and ctx.get('is_required_print_identify'))
+                )
+                if requires_sign:
+                    if not rec.is_have_printed:
+                        raise UserError(_(
+                            'Vui lòng in phiếu trước khi xác nhận.'
+                        ))
+                    if not rec.image_tracking_attachment_id:
+                        return {
+                            'type': 'ir.actions.act_window',
+                            'name': _('Upload Hình Ảnh Xác Minh'),
+                            'res_model': 't4.product.creation.sign.wizard',
+                            'view_mode': 'form',
+                            'target': 'new',
+                            'context': {'default_creation_id': rec.id},
+                        }
 
             # Resolve lot_name → lot_id (find existing or create for assembly).
             if rec.lot_name and not rec.lot_id:
