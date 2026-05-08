@@ -70,8 +70,9 @@
                     <group>
                         <group>
                             <field name="product_tmpl_id"
-                                   readonly="1"
-                                   options="{'no_open': 1, 'no_create': 1}"/>
+                                   readonly="True"
+                                   force_save="1"
+                                   options="{'no_open': True, 'no_create': True}"/>
                             <field name="lot_name"
                                    readonly="state == 'done'"
                                    placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
@@ -184,7 +185,7 @@
                          ============================================ -->
                     <div invisible="type != 'assembly'"
                          class="d-flex flex-row gap-2">
-                        <div class="flex-fill">
+                        <div class="flex-fill min-w-0">
                             <group string="Linh Kiện Sử Dụng" class="oe_group_border">
                                 <field name="line_ids"
                                        nolabel="1"
@@ -230,7 +231,7 @@
                                 </field>
                             </group>
                         </div>
-                        <div class="flex-fill">
+                        <div class="flex-fill min-w-0">
                             <group string="Linh Kiện Trả" class="oe_group_border">
                                 <field name="line_returned_ids"
                                        nolabel="1"

@@ -83,6 +83,7 @@ class ProductCreation(models.Model):
     product_tmpl_id = fields.Many2one(
         related='product_id.product_tmpl_id',
         store=True,
+        readonly=True,
     )
     lot_id = fields.Many2one(
         'stock.lot',
