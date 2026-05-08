@@ -10,10 +10,13 @@
     'category': 'Inventory/Warehouse',
     'author': 'T4TEK-DEV',
     'license': 'LGPL-3',
-    # t4_sti: dùng `t4.sti.config.is_required_print_assembly|identify` để
-    # quyết định có bật wizard upload ảnh ký lúc xác nhận phiếu hay không
-    # (mirror pattern stock.picking + t4.sti.picking.sign.wizard).
-    'depends': ['stock', 'sale_stock', 'mail', 't4_sti', 't4_sti_brand_manufacturer'],
+    # KHÔNG depend trực tiếp `t4_sti` — vì `t4_sti` depends ngược về module
+    # này (chain: t4_product_package → t4_sti → t4_product_package = circular).
+    # Wizard intercept đọc flag `is_required_print_assembly|identify` từ
+    # `self.env.context` — `t4_sti.ir_http.session_info` inject flags vào
+    # user_context khi user login. Nếu `t4_sti` không cài: ctx.get() trả None
+    # → wizard không kích hoạt → graceful degradation.
+    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
