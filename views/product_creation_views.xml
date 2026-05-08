@@ -135,7 +135,7 @@
                                        context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
-                                       column_invisible="not context.get('tracking_no_active')"
+                                       column_invisible="tracking == 'serial'"
                                        readonly="parent_state == 'done' or tracking == 'serial'"
                                        force_save="1"/>
                                 <field name="lot_id"
@@ -283,8 +283,16 @@
                                    placeholder="Ghi chú nội bộ..."/>
                             <separator string="Hình Ảnh Xác Minh"/>
                             <field name="image_tracking_filename" invisible="1"/>
+                            <div invisible="not image_tracking">
+                                <button name="action_download_image_tracking"
+                                        type="object"
+                                        string="Tải Hình Về"
+                                        icon="fa-download"
+                                        class="btn btn-secondary"/>
+                            </div>
                             <field name="image_tracking"
                                    widget="image"
+                                   filename="image_tracking_filename"
                                    options="{'size': [600, 0]}"
                                    readonly="state == 'done'"/>
                         </page>

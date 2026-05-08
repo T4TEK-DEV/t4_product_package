@@ -159,11 +159,28 @@ class ProductCreation(models.Model):
     # Notes & verification
     # ------------------------------------------------------------------
     note = fields.Text(string='Ghi Chú')
+    # Pattern: lưu qua `ir.attachment` thay vì Binary auto-attachment
+    # (giống `print_attachment_id` ở stock.picking trong t4_sti). Lợi ích:
+    #   - Download URL gọn `/web/content/<id>?download=true`
+    #   - Attachment xuất hiện ở chatter, có ACL riêng, dễ truy vết
+    #   - Cleanup tự động khi xoá record (qua res_model/res_id)
+    image_tracking_attachment_id = fields.Many2one(
+        'ir.attachment',
+        string='Hình Ảnh Xác Minh - Attachment',
+        copy=False,
+        ondelete='set null',
+    )
     image_tracking = fields.Binary(
         string='Hình Ảnh Xác Minh',
+        compute='_compute_image_tracking',
+        inverse='_inverse_image_tracking',
         help='Hình chụp xác minh phiếu đã hoàn thành (chữ ký, vật chứng).',
     )
-    image_tracking_filename = fields.Char(string='Tên File')
+    image_tracking_filename = fields.Char(
+        string='Tên File',
+        compute='_compute_image_tracking',
+        inverse='_inverse_image_tracking',
+    )
     is_have_printed = fields.Boolean(
         string='Đã In',
         copy=False,
@@ -366,3 +383,63 @@ class ProductCreation(models.Model):
             else 't4_product_package.action_report_t4_product_creation_identify'
         )
         return self.env.ref(report_xml_id).report_action(self)
+
+    @api.depends('image_tracking_attachment_id',
+                 'image_tracking_attachment_id.datas',
+                 'image_tracking_attachment_id.name')
+    def _compute_image_tracking(self):
+        for rec in self:
+            att = rec.image_tracking_attachment_id
+            rec.image_tracking = att.datas if att else False
+            rec.image_tracking_filename = att.name if att else False
+
+    def _inverse_image_tracking(self):
+        """Tạo / cập nhật / xoá `ir.attachment` khi user upload qua widget=image.
+
+        - Có data + chưa có attachment  → tạo mới (gắn res_model/res_id để
+          attachment được cleanup tự động khi record bị xoá).
+        - Có data + đã có attachment    → ghi đè datas; chỉ ghi đè name nếu
+          user thực sự cung cấp filename mới (tránh trường hợp clear filename
+          xong inverse fall back về 'image_tracking' và đè tên gốc).
+        - Không có data + có attachment → xoá attachment, FK tự null qua
+          ondelete='set null'.
+        """
+        Attachment = self.env['ir.attachment']
+        for rec in self:
+            data = rec.image_tracking
+            name = rec.image_tracking_filename
+            att = rec.image_tracking_attachment_id
+            if data:
+                if att:
+                    vals = {'datas': data}
+                    if name:
+                        vals['name'] = name
+                    att.write(vals)
+                else:
+                    new_att = Attachment.create({
+                        'name': name or 'image_tracking',
+                        'datas': data,
+                        'res_model': 't4.product.creation',
+                        'res_id': rec.id,
+                        'type': 'binary',
+                    })
+                    rec.image_tracking_attachment_id = new_att
+            elif att:
+                att.unlink()
+
+    def action_download_image_tracking(self):
+        """Trả về URL tải về attachment hình ảnh xác minh.
+
+        Dùng route chuẩn `/web/content/<id>?download=true` của Odoo (giống
+        `action_download_verification_image` ở stock.picking). Target `self`
+        để trình duyệt xử lý header `Content-Disposition: attachment` và lưu
+        file vào Downloads thay vì điều hướng tab hiện tại sang trang trắng.
+        """
+        self.ensure_one()
+        if not self.image_tracking_attachment_id:
+            raise UserError(_("Phiếu chưa có hình ảnh xác minh."))
+        return {
+            "type": "ir.actions.act_url",
+            "url": "/web/content/%s?download=true" % self.image_tracking_attachment_id.id,
+            "target": "self",
+        }
