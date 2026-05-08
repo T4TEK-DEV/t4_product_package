@@ -4,4 +4,5 @@ from . import product_creation
 from . import product_template_inherit
 from . import packing_request
 from . import packing_request_line
+from . import stock_lot
 from . import stock_picking_inherit

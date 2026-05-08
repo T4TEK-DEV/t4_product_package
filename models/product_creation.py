@@ -249,25 +249,31 @@ class ProductCreation(models.Model):
                 ))
 
     # ------------------------------------------------------------------
-    # Onchange — auto-resolve lot_name → lot_id khi user nhập tên lot
+    # Onchange — auto-resolve lot_name → lot_id + product_id khi user
+    # nhập/quét tên lot
     # ------------------------------------------------------------------
-    @api.onchange('lot_name', 'product_id')
+    @api.onchange('lot_name')
     def _onchange_lot_name(self):
-        """Khi user nhập lot_name, tự tìm lot khớp tên + product để set lot_id.
+        """Khi user gõ/quét lot_name, tự tìm lot và bind toàn bộ header.
 
-        Logic:
-          - Có lot khớp → set lot_id (Brd/Mfr S/N tự load từ related).
+        Tìm theo `name` toàn cục (lot.name unique do t4_sti enforce):
+          - Có lot khớp:
+              * set lot_id (Brd/Mfr S/N tự load qua related field)
+              * set product_id từ lot.product_id để user khỏi chọn lại
+                thành phẩm — RFID là source-of-truth.
           - Không khớp → giữ lot_name; lot_id sẽ được tạo (assembly) hoặc
             báo lỗi (identify) tại action_confirm.
         """
-        if not self.lot_name or not self.product_id:
+        if not self.lot_name:
             return
         lot = self.env['stock.lot'].search([
             ('name', '=', self.lot_name.strip()),
-            ('product_id', '=', self.product_id.id),
         ], limit=1)
-        if lot:
-            self.lot_id = lot
+        if not lot:
+            return
+        self.lot_id = lot
+        if lot.product_id:
+            self.product_id = lot.product_id
 
     @api.onchange('lot_id')
     def _onchange_lot_id(self):

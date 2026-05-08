@@ -52,9 +52,15 @@ class ProductCreationLine(models.Model):
     tracking = fields.Selection(related='product_id.tracking', store=False)
     lot_id = fields.Many2one(
         'stock.lot',
-        string='Mã Quản Lý',
+        string='Mã Quản Lý (ref)',
         domain="[('product_id', '=', product_id)]",
         ondelete='restrict',
+    )
+    lot_name = fields.Char(
+        string='Mã Quản Lý',
+        help='Tên lot/serial của linh kiện. Nhập hoặc quét trực tiếp — '
+             'hệ thống tự tìm lot khớp tên (lọc theo product_id nếu đã chọn) '
+             'và set lot_id + snapshot Brd/Mfr S/N.',
     )
     quantity = fields.Float(
         string='Số Lượng',
@@ -145,3 +151,39 @@ class ProductCreationLine(models.Model):
         for line in self:
             line.total_standard_price = line.quantity * line.standard_price
             line.total_list_price = line.quantity * line.list_price
+
+    # ------------------------------------------------------------------
+    # Onchange — resolve lot_name → lot_id + snapshot Brd/Mfr S/N
+    # ------------------------------------------------------------------
+    @api.onchange('lot_name', 'product_id')
+    def _onchange_lot_name(self):
+        """Khi user gõ/quét lot_name, tìm stock.lot và bind lot_id, S/N.
+
+        - Filter theo product_id nếu đã chọn (lot trùng tên với product
+          khác sẽ không match).
+        - Không khớp → giữ lot_name; không xoá dữ liệu hiện có.
+        - Khớp → set lot_id, fill product_id (nếu chưa có), snapshot
+          brand/manufacturer S/N (chỉ khi line chưa có giá trị, tránh
+          đè entry thủ công).
+        """
+        if not self.lot_name:
+            return
+        domain = [('name', '=', self.lot_name.strip())]
+        if self.product_id:
+            domain.append(('product_id', '=', self.product_id.id))
+        lot = self.env['stock.lot'].search(domain, limit=1)
+        if not lot:
+            return
+        self.lot_id = lot
+        if not self.product_id and lot.product_id:
+            self.product_id = lot.product_id
+        if not self.brand_part_id and lot.brand_part_id:
+            self.brand_part_id = lot.brand_part_id
+        if not self.manufacturer_part_id and lot.manufacturer_part_id:
+            self.manufacturer_part_id = lot.manufacturer_part_id
+
+    @api.onchange('lot_id')
+    def _onchange_lot_id_sync_name(self):
+        """Sync lot_id → lot_name khi lot được set qua dropdown ẩn / RPC."""
+        if self.lot_id and self.lot_id.name != self.lot_name:
+            self.lot_name = self.lot_id.name
