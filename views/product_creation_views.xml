@@ -26,6 +26,7 @@
         <field name="arch" type="xml">
             <form string="Phiếu Lắp Ráp">
                 <field name="type" invisible="1"/>
+                <field name="is_have_printed" invisible="1"/>
                 <field name="cost_currency_id" invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                 <header>
@@ -35,11 +36,16 @@
                             class="btn"
                             icon="fa-print"
                             invisible="not line_ids and not line_returned_ids"/>
+                    <!-- Xác Nhận: ẩn khi config bắt buộc in (theo type) mà chưa
+                         in. Nếu config require_print = False, hiện luôn — user
+                         xác nhận trực tiếp không cần qua bước In. Context flag
+                         `is_required_print_assembly|identify` được inject từ
+                         t4_sti.ir_http.session_info. -->
                     <button name="action_confirm"
                             string="Xác Nhận"
                             type="object"
                             class="oe_highlight"
-                            invisible="state == 'done' or (not line_ids and not line_returned_ids)"/>
+                            invisible="state == 'done' or (not line_ids and not line_returned_ids) or (((type == 'assembly' and context.get('is_required_print_assembly')) or (type == 'identify' and context.get('is_required_print_identify'))) and not is_have_printed)"/>
                     <button name="action_cancel"
                             string="Huỷ"
                             type="object"
