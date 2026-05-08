@@ -94,7 +94,7 @@ class ProductCreation(models.Model):
              'tạo khi xác nhận; với type=identify user chọn lot có sẵn.',
     )
     lot_name = fields.Char(
-        string='Mã Quản Lý Thành Phẩm',
+        string='Mã Quản Lý TP',
         copy=False,
         tracking=True,
         help='Tên lot/serial của thành phẩm. Nhập hoặc quét trực tiếp — '
@@ -309,7 +309,7 @@ class ProductCreation(models.Model):
 
             if rec.type == 'identify' and not rec.lot_id:
                 raise UserError(_(
-                    'Phiếu định danh phải có Mã Quản Lý Thành Phẩm trước khi '
+                    'Phiếu định danh phải có Mã Quản Lý TP trước khi '
                     'xác nhận.'
                 ))
 

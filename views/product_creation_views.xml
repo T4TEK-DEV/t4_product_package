@@ -26,7 +26,7 @@
         <field name="arch" type="xml">
             <form string="Phiếu Lắp Ráp">
                 <field name="type" invisible="1"/>
-                <field name="cost_currency_id" invisible="1"/>
+                <field name="cost_currency_id" invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                 <header>
                     <button name="action_print"
@@ -53,7 +53,7 @@
                 </header>
 
                 <sheet>
-                    <field name="lot_id" invisible="1"/>
+                    <field name="lot_id" invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                     <div class="oe_title">
                         <h1>
@@ -69,6 +69,9 @@
 
                     <group>
                         <group>
+                            <field name="product_tmpl_id"
+                                   readonly="1"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
                             <field name="lot_name"
                                    readonly="state == 'done'"
                                    placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
@@ -111,6 +114,7 @@
                            class="oe_group_border">
                         <field name="line_ids"
                                nolabel="1"
+                               colspan="2"
                                readonly="state == 'done' or (not lot_name and not lot_id)"
                                context="{
                                    'default_line_type': 'used',
@@ -121,7 +125,7 @@
                                 <field name="sequence" widget="handle"/>
                                 <field name="line_type" column_invisible="1"/>
                                 <field name="tracking" column_invisible="1"/>
-                                <field name="cost_currency_id" column_invisible="1"/>
+                                <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
                                 <field name="parent_state" column_invisible="1"/>
 
                                 <field name="product_id"
@@ -184,6 +188,7 @@
                             <group string="Linh Kiện Sử Dụng" class="oe_group_border">
                                 <field name="line_ids"
                                        nolabel="1"
+                                       colspan="2"
                                        readonly="state == 'done' or (type == 'assembly' and not lot_name and not lot_id)"
                                        context="{
                                            'default_line_type': 'used',
@@ -194,7 +199,7 @@
                                         <field name="sequence" widget="handle"/>
                                         <field name="line_type" column_invisible="1"/>
                                         <field name="tracking" column_invisible="1"/>
-                                        <field name="cost_currency_id" column_invisible="1"/>
+                                        <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
                                         <field name="parent_state" column_invisible="1"/>
 
                                         <field name="product_id"
@@ -229,6 +234,7 @@
                             <group string="Linh Kiện Trả" class="oe_group_border">
                                 <field name="line_returned_ids"
                                        nolabel="1"
+                                       colspan="2"
                                        readonly="state == 'done' or (not lot_name and not lot_id)"
                                        context="{'default_line_type': 'returned', 'wizard_type': type}">
                                     <list editable="bottom" create="true" delete="true"
