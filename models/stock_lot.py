@@ -21,6 +21,18 @@ class StockLot(models.Model):
 
     @api.depends()
     def _compute_fg_component_line_ids(self):
+        """Tổng hợp linh kiện đã lắp/định danh cho FG này.
+
+        Bao gồm cả:
+            - type='assembly' done (lần đầu lắp ráp tạo FG)
+            - type='identify' done (lần định danh thêm linh kiện cho FG có sẵn)
+
+        Field `store=False` → mỗi lần đọc sẽ recompute, không cần cache
+        invalidation tự động. Caller sau khi xác nhận phiếu identify
+        nên gọi `lot.invalidate_recordset(['fg_component_line_ids'])`
+        để form đang mở refresh ngay (xem
+        `t4.product.creation._t4_create_component_lots`).
+        """
         Creation = self.env['t4.product.creation'].sudo()
         for lot in self:
             if not lot.id:
@@ -28,7 +40,7 @@ class StockLot(models.Model):
                 continue
             records = Creation.search([
                 ('lot_id', '=', lot.id),
-                ('type', '=', 'assembly'),
+                ('type', 'in', ['assembly', 'identify']),
                 ('state', '=', 'done'),
             ])
             lot.fg_component_line_ids = records.mapped('line_ids').filtered(

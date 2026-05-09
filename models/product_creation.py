@@ -15,6 +15,7 @@ Port từ v18 `product.creation.wizard` (extra-addons_18/STI-backend/STIs).
 Cả 2 type dùng chung view list/form (form ẩn/hiện section theo type).
 """
 import logging
+from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -121,6 +122,31 @@ class ProductCreation(models.Model):
         string='Công Ty',
         default=lambda self: self.env.company,
         required=True,
+    )
+
+    # ------------------------------------------------------------------
+    # Cost confirmation (chỉ áp dụng cho type='identify')
+    # Mirror pattern in_purchase trong t4_sti.stock_picking: 2 bước
+    # — Purchase/Manager xác nhận giá trước, sau đó action_confirm tạo
+    # stock.lot + stock.quant cho linh kiện mới.
+    # ------------------------------------------------------------------
+    t4_cost_confirmed = fields.Boolean(
+        string='Đã Xác Nhận Giá Mua',
+        copy=False,
+        tracking=True,
+        help='Đánh dấu đã xác nhận giá mua linh kiện. Bắt buộc cho '
+             'phiếu Định Danh LK TP trước khi xác nhận chính thức.',
+    )
+    t4_cost_confirm_user_id = fields.Many2one(
+        'res.users',
+        string='Người Xác Nhận Giá',
+        copy=False,
+        readonly=True,
+    )
+    t4_cost_confirm_date = fields.Datetime(
+        string='Ngày Xác Nhận Giá',
+        copy=False,
+        readonly=True,
     )
 
     # ------------------------------------------------------------------
@@ -378,10 +404,270 @@ class ProductCreation(models.Model):
                     'xác nhận.'
                 ))
 
+            # Identify-only gates: cost-confirm bắt buộc + tạo stock.lot
+            # + stock.quant cho linh kiện mới định danh.
+            if rec.type == 'identify':
+                if not rec.t4_cost_confirmed:
+                    raise UserError(_(
+                        'Vui lòng xác nhận giá mua trước khi xác nhận phiếu '
+                        '(yêu cầu quyền Thu Mua / Quản Lý).'
+                    ))
+                # Re-validate: nếu user thêm dòng mới sau cost-confirm,
+                # standard_price có thể = 0 → buộc đặt về Nháp & xác nhận
+                # giá lại.
+                zero_price = rec.line_ids.filtered(
+                    lambda l: not l.standard_price or l.standard_price <= 0
+                )
+                if zero_price:
+                    names = ', '.join(
+                        zero_price.mapped('product_id.display_name')[:5]
+                    )
+                    raise UserError(_(
+                        'Có dòng linh kiện chưa có giá mua: %(names)s. '
+                        'Vui lòng đặt phiếu về Nháp và xác nhận lại giá.',
+                        names=names,
+                    ))
+                rec._t4_create_component_lots()
+
             if rec.packing_request_id:
                 rec._sync_packing_request_qty_packed()
 
             rec.state = 'done'
+
+    def action_confirm_cost(self):
+        """Xác nhận giá mua cho phiếu Định Danh LK TP.
+
+        Mirror pattern in_purchase (`stock.picking._t4_check_demand_not_zero`
+        + `_t4_confirm_cost`):
+            - Chỉ áp dụng cho phiếu type='identify' state='draft'.
+            - Validate mọi dòng:
+              + product_id đã set
+              + quantity > 0
+              + lot_name có khi tracking == 'serial'
+              + standard_price > 0
+              + brand/manufacturer S/N nếu config require (đọc context,
+                fallback singleton t4.sti.config).
+            - Set 3 field cost_confirm + post message vào chatter.
+            - Lock UI: x2many `line_ids` readonly khi t4_cost_confirmed
+              (xem view).
+
+        Quyền hiển thị/gọi: thực thi qua group purchase/accounting/manager
+        (declared trên button XML).
+        """
+        self.ensure_one()
+        if self.type != 'identify':
+            raise UserError(_(
+                'Chỉ phiếu Định Danh LK TP mới cần xác nhận giá mua.'
+            ))
+        if self.state != 'draft':
+            raise UserError(_(
+                'Chỉ phiếu ở trạng thái Nháp mới có thể xác nhận giá.'
+            ))
+        if self.t4_cost_confirmed:
+            raise UserError(_('Giá đã được xác nhận trước đó.'))
+        if not self.line_ids:
+            raise UserError(_(
+                'Phiếu chưa có dòng Linh Kiện Sử Dụng để xác nhận giá.'
+            ))
+
+        # Đọc flag config từ context (t4_sti.ir_http.session_info inject);
+        # fallback singleton nếu thiếu (case CLI / migration / cron).
+        ctx = self.env.context
+        is_have_brand = ctx.get('is_have_brand')
+        is_have_mfr = ctx.get('is_have_manufacturer')
+        if is_have_brand is None or is_have_mfr is None:
+            cfg = self.env['t4.sti.config'].sudo()._get_default()
+            if is_have_brand is None:
+                is_have_brand = bool(cfg and cfg.is_have_brand)
+            if is_have_mfr is None:
+                is_have_mfr = bool(cfg and cfg.is_have_manufacturer)
+
+        # Validate: missing product_id (chống dòng rỗng do paste/import)
+        no_product = self.line_ids.filtered(lambda l: not l.product_id)
+        if no_product:
+            raise UserError(_(
+                'Có dòng Linh Kiện Sử Dụng chưa chọn sản phẩm — '
+                'vui lòng kiểm tra lại.'
+            ))
+
+        # Validate: quantity > 0 (mirror _t4_check_demand_not_zero)
+        zero_qty = self.line_ids.filtered(
+            lambda l: not l.quantity or l.quantity <= 0
+        )
+        if zero_qty:
+            names = ', '.join(zero_qty.mapped('product_id.display_name')[:5])
+            raise UserError(_(
+                'Vui lòng nhập Số Lượng (> 0) cho tất cả linh kiện. '
+                'Dòng còn thiếu: %(names)s',
+                names=names,
+            ))
+
+        # Validate: lot_name bắt buộc cho serial
+        no_lot = self.line_ids.filtered(
+            lambda l: l.product_id.tracking == 'serial' and not l.lot_name
+        )
+        if no_lot:
+            names = ', '.join(no_lot.mapped('product_id.display_name')[:5])
+            raise UserError(_(
+                'Linh kiện tracking serial phải có Mã Quản Lý. '
+                'Dòng còn thiếu: %(names)s',
+                names=names,
+            ))
+
+        # Validate: standard_price > 0
+        zero_price = self.line_ids.filtered(
+            lambda l: not l.standard_price or l.standard_price <= 0
+        )
+        if zero_price:
+            names = ', '.join(zero_price.mapped('product_id.display_name')[:5])
+            raise UserError(_(
+                'Vui lòng nhập đơn giá mua (> 0) cho tất cả linh kiện. '
+                'Dòng còn thiếu: %(names)s',
+                names=names,
+            ))
+
+        # Validate: Brd/Mfr S/N theo config (chỉ check serial — qty/no
+        # tracking không cần Brd/Mfr).
+        if is_have_brand or is_have_mfr:
+            missing_part = self.line_ids.filtered(
+                lambda l: l.product_id.tracking == 'serial'
+                          and (
+                              (is_have_brand and not l.brand_part_id and not l.manufacturer_part_id)
+                              or (is_have_mfr and not l.manufacturer_part_id and not l.brand_part_id)
+                          )
+            )
+            if missing_part:
+                names = ', '.join(
+                    missing_part.mapped('product_id.display_name')[:5]
+                )
+                raise UserError(_(
+                    'Linh kiện serial phải có ít nhất 1 trong Brd. S/N hoặc '
+                    'Mnf. S/N. Dòng còn thiếu: %(names)s',
+                    names=names,
+                ))
+
+        self.write({
+            't4_cost_confirmed': True,
+            't4_cost_confirm_user_id': self.env.user.id,
+            't4_cost_confirm_date': fields.Datetime.now(),
+        })
+        self.message_post(body=_(
+            'Đã xác nhận giá mua bởi %(user)s. Tổng giá: %(total)s. '
+            'Các dòng linh kiện đã được khoá.',
+            user=self.env.user.name,
+            total=self.total_standard_price,
+        ))
+
+    def _t4_create_component_lots(self):
+        """Tạo stock.lot + stock.quant + svl cho linh kiện identify.
+
+        Mirror pattern accounting của in_purchase (`_t4_apply_cost`):
+
+        Pass 1 — Lot + standard_price:
+            - Tạo stock.lot (Brd/Mfr soft guard).
+            - Group standard_price theo cost giống `_t4_apply_cost`:
+              + product `lot_valuated=True` & tracking != 'none' →
+                set `lot.standard_price` (svl per-lot).
+              + Ngược lại → set `product.standard_price`.
+              Batch theo cost-bucket để giảm ORM writes + invalidate.
+
+        Pass 2 — Quant + Inventory Adjustment:
+            - Tạo stock.quant với `inventory_quantity = line.quantity`
+              tại location của FG (lấy quant internal đầu tiên của
+              header lot_id).
+            - Gọi `_apply_inventory()` → Odoo tự tạo stock.move (từ
+              location_inventory → fg_location), `_action_done()` →
+              tạo stock_valuation_layer + journal entries (giống
+              Inventory Adjustment).
+
+        Sau cùng invalidate cache `fg_component_line_ids` của FG lot.
+        """
+        self.ensure_one()
+        if self.type != 'identify':
+            return
+
+        Lot = self.env['stock.lot']
+        Quant = self.env['stock.quant']
+        Product = self.env['product.product']
+        has_brand = 'brand_part_id' in Lot._fields
+        has_mfr = 'manufacturer_part_id' in Lot._fields
+
+        fg_quant = self.lot_id.quant_ids.filtered(
+            lambda q: q.location_id.usage == 'internal'
+        )[:1]
+        if not fg_quant:
+            raise UserError(_(
+                'Thành phẩm "%(prod)s" (lot %(lot)s) chưa có vị trí kho '
+                'nội bộ — không thể nhập linh kiện vào kho.',
+                prod=self.product_id.display_name,
+                lot=self.lot_id.name,
+            ))
+        fg_location = fg_quant.location_id
+
+        # ----------------------------------------------------------
+        # Pass 1: tạo lot + collect cost-buckets cho batch write
+        # ----------------------------------------------------------
+        cost_to_lots = defaultdict(lambda: Lot)
+        cost_to_products = defaultdict(lambda: Product)
+        line_lot_pairs = []  # [(line, new_lot)]
+
+        for line in self.line_ids:
+            if line.lot_id or not line.lot_name or not line.product_id:
+                continue
+            if not line.quantity or line.quantity <= 0:
+                continue
+
+            lot_vals = {
+                'name': line.lot_name.strip(),
+                'product_id': line.product_id.id,
+                'company_id': self.company_id.id,
+            }
+            if has_brand and line.brand_part_id:
+                lot_vals['brand_part_id'] = line.brand_part_id
+            if has_mfr and line.manufacturer_part_id:
+                lot_vals['manufacturer_part_id'] = line.manufacturer_part_id
+
+            new_lot = Lot.create(lot_vals)
+            line.lot_id = new_lot
+            line_lot_pairs.append((line, new_lot))
+
+            cost = line.standard_price or 0.0
+            if cost > 0:
+                product = line.product_id
+                if product.lot_valuated and product.tracking != 'none':
+                    cost_to_lots[cost] |= new_lot
+                else:
+                    cost_to_products[cost] |= product
+
+        # Batch-write standard_price TRƯỚC khi tạo quant + apply
+        # inventory: svl đọc lot/product.standard_price khi move
+        # _action_done → giá phải có sẵn.
+        for cost, lots in cost_to_lots.items():
+            lots.standard_price = cost
+        for cost, products in cost_to_products.items():
+            products.standard_price = cost
+
+        # ----------------------------------------------------------
+        # Pass 2: tạo quant với inventory_quantity → _apply_inventory
+        # ----------------------------------------------------------
+        quants_to_apply = Quant
+        for line, new_lot in line_lot_pairs:
+            new_quant = Quant.with_context(inventory_mode=True).create({
+                'product_id': line.product_id.id,
+                'location_id': fg_location.id,
+                'lot_id': new_lot.id,
+                'inventory_quantity': line.quantity,
+                'inventory_quantity_set': True,
+            })
+            quants_to_apply |= new_quant
+
+        if quants_to_apply:
+            # _apply_inventory: tạo stock.move (location_inventory →
+            # fg_location) + _action_done → svl + journal entries.
+            quants_to_apply._apply_inventory()
+
+        # Invalidate FG lot's fg_component_line_ids để form refresh.
+        self.lot_id.invalidate_recordset(['fg_component_line_ids'])
 
     def _sync_packing_request_qty_packed(self):
         """Cập nhật qty_packed trên packing.request.line theo line_ids."""
@@ -398,8 +684,20 @@ class ProductCreation(models.Model):
             rec.state = 'cancel'
 
     def action_draft(self):
+        """Đặt về Nháp — reset cost_confirmed để cho phép xác nhận giá lại.
+
+        Không reset lại các stock.lot / stock.quant đã tạo (state=done →
+        cancel → draft path không xảy ra theo design vì state=done không
+        có nút cancel; chỉ cancel → draft). Nếu sau này mở rộng cho phép
+        revert state=done → cần thêm rollback logic.
+        """
         for rec in self:
-            rec.state = 'draft'
+            rec.write({
+                'state': 'draft',
+                't4_cost_confirmed': False,
+                't4_cost_confirm_user_id': False,
+                't4_cost_confirm_date': False,
+            })
 
     def action_print(self):
         """In phiếu lắp ráp / định danh.

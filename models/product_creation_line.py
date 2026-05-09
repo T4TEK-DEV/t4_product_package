@@ -6,7 +6,8 @@ Mỗi dòng = 1 lần sử dụng (line_type='used') hoặc 1 lần trả lại
 danh thành phẩm. Lưu snapshot giá tại thời điểm tạo để truy vết kế
 toán độc lập với lịch sử biến động giá sau này.
 """
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ProductCreationLine(models.Model):
@@ -39,6 +40,9 @@ class ProductCreationLine(models.Model):
     # Related to make domain/invisible on view simpler
     wizard_type = fields.Selection(related='creation_id.type', store=False)
     parent_state = fields.Selection(related='creation_id.state', store=False)
+    parent_cost_confirmed = fields.Boolean(
+        related='creation_id.t4_cost_confirmed', store=False,
+    )
 
     # ------------------------------------------------------------------
     # Product & lot
@@ -157,18 +161,44 @@ class ProductCreationLine(models.Model):
     # ------------------------------------------------------------------
     @api.onchange('lot_name', 'product_id')
     def _onchange_lot_name(self):
-        """Khi user gõ/quét lot_name, tìm stock.lot và bind lot_id, S/N.
+        """Khi user gõ/quét lot_name, hành xử theo wizard_type.
 
-        - Filter theo product_id nếu đã chọn (lot trùng tên với product
-          khác sẽ không match).
-        - Không khớp → giữ lot_name; không xoá dữ liệu hiện có.
-        - Khớp → set lot_id, fill product_id (nếu chưa có), snapshot
-          brand/manufacturer S/N (chỉ khi line chưa có giá trị, tránh
-          đè entry thủ công).
+        - assembly (lắp ráp): linh kiện ĐÃ được định danh trước đó —
+          find existing lot, bind `lot_id`, fill `product_id` (nếu
+          chưa có) và snapshot Brd/Mfr S/N.
+
+        - identify (định danh LK TP): mã CHƯA tồn tại — đây là lần
+          đầu định danh cho linh kiện. Mirror pattern
+          `int_serial_assign` (Phiếu Định Danh Sản Phẩm): nếu mã đã
+          tồn tại trong `stock.lot` (bất kỳ product nào) → trả
+          warning + clear `lot_name`. KHÔNG auto-fill Brd/Mfr S/N
+          (user nhập tay).
         """
         if not self.lot_name:
             return
-        domain = [('name', '=', self.lot_name.strip())]
+        name = self.lot_name.strip()
+
+        if self.wizard_type == 'identify':
+            existing = self.env['stock.lot'].sudo().search(
+                [('name', '=', name)], limit=1,
+            )
+            if existing:
+                self.lot_name = False
+                return {
+                    'warning': {
+                        'title': _('Mã đã được định danh'),
+                        'message': _(
+                            'Mã "%(tag)s" đã được định danh cho sản phẩm '
+                            '"%(prod)s" trong hệ thống, không thể định danh lại.',
+                            tag=name,
+                            prod=existing.product_id.display_name
+                                 or _('(không xác định)'),
+                        ),
+                    }
+                }
+            return
+
+        domain = [('name', '=', name)]
         if self.product_id:
             domain.append(('product_id', '=', self.product_id.id))
         lot = self.env['stock.lot'].search(domain, limit=1)
@@ -187,3 +217,48 @@ class ProductCreationLine(models.Model):
         """Sync lot_id → lot_name khi lot được set qua dropdown ẩn / RPC."""
         if self.lot_id and self.lot_id.name != self.lot_name:
             self.lot_name = self.lot_id.name
+
+    # ------------------------------------------------------------------
+    # Server-side guards — chốt chặn cho luồng định danh
+    # ------------------------------------------------------------------
+    @api.constrains('lot_name', 'line_type', 'creation_id')
+    def _check_identify_lot_name_unique(self):
+        """Phiếu Định Danh LK TP: lot_name của Linh Kiện Sử Dụng phải
+        chưa tồn tại trong hệ thống và không được trùng giữa các dòng.
+
+        Backup cho onchange (warning có thể bị bypass khi tạo qua RPC,
+        import, hoặc paste batch). Chỉ áp dụng cho line_type='used' của
+        phiếu type='identify'.
+        """
+        Lot = self.env['stock.lot'].sudo()
+        for rec in self:
+            if rec.creation_id.type != 'identify':
+                continue
+            if rec.line_type != 'used':
+                continue
+            if not rec.lot_name:
+                continue
+            name = rec.lot_name.strip()
+
+            existing = Lot.search([('name', '=', name)], limit=1)
+            if existing:
+                raise ValidationError(_(
+                    'Mã "%(tag)s" đã được định danh cho sản phẩm '
+                    '"%(prod)s" trong hệ thống, không thể định danh lại.',
+                    tag=name,
+                    prod=existing.product_id.display_name
+                         or _('(không xác định)'),
+                ))
+
+            siblings = rec.creation_id.line_ids.filtered(
+                lambda l: l.id != rec.id
+                          and l.line_type == 'used'
+                          and l.lot_name
+                          and l.lot_name.strip() == name
+            )
+            if siblings:
+                raise ValidationError(_(
+                    'Mã "%(tag)s" bị trùng giữa các dòng Linh Kiện Sử Dụng '
+                    'trong cùng phiếu. Mỗi mã chỉ được định danh 1 lần.',
+                    tag=name,
+                ))

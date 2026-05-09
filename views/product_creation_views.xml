@@ -36,16 +36,24 @@
                             class="btn"
                             icon="fa-print"
                             invisible="not line_ids and not line_returned_ids"/>
+                    <!-- Xác Nhận Giá Mua (chỉ identify) — mirror in_purchase
+                         pattern. Hiển thị cho purchase/accounting/manager khi
+                         phiếu draft + có dòng + chưa cost_confirmed. -->
+                    <button name="action_confirm_cost"
+                            string="Xác Nhận Giá Mua"
+                            type="object"
+                            class="oe_highlight"
+                            groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"
+                            invisible="type != 'identify' or state != 'draft' or not line_ids or t4_cost_confirmed"/>
                     <!-- Xác Nhận: ẩn khi config bắt buộc in (theo type) mà chưa
-                         in. Nếu config require_print = False, hiện luôn — user
-                         xác nhận trực tiếp không cần qua bước In. Context flag
-                         `is_required_print_assembly|identify` được inject từ
-                         t4_sti.ir_http.session_info. -->
+                         in. Với identify, thêm gate t4_cost_confirmed. Context
+                         flag `is_required_print_assembly|identify` được inject
+                         từ t4_sti.ir_http.session_info. -->
                     <button name="action_confirm"
                             string="Xác Nhận"
                             type="object"
                             class="oe_highlight"
-                            invisible="state == 'done' or (not line_ids and not line_returned_ids) or (((type == 'assembly' and context.get('is_required_print_assembly')) or (type == 'identify' and context.get('is_required_print_identify'))) and not is_have_printed)"/>
+                            invisible="state == 'done' or (not line_ids and not line_returned_ids) or (((type == 'assembly' and context.get('is_required_print_assembly')) or (type == 'identify' and context.get('is_required_print_identify'))) and not is_have_printed) or (type == 'identify' and not t4_cost_confirmed)"/>
                     <button name="action_cancel"
                             string="Huỷ"
                             type="object"
@@ -60,6 +68,13 @@
 
                 <sheet>
                     <field name="lot_id" invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
+                    <field name="t4_cost_confirmed" invisible="1"/>
+
+                    <!-- Ribbon: hiển thị trạng thái đã xác nhận giá (identify) -->
+                    <widget name="web_ribbon"
+                            title="Đã Xác Nhận Giá"
+                            bg_color="text-bg-success"
+                            invisible="type != 'identify' or not t4_cost_confirmed"/>
 
                     <div class="oe_title">
                         <h1>
@@ -129,10 +144,15 @@
                     <group string="Linh Kiện Sử Dụng"
                            invisible="type != 'identify'"
                            class="oe_group_border">
+                        <!-- readonly trên field x2many lock toàn bộ:
+                             no edit, no add, no delete. Sau khi xác
+                             nhận giá → user không thể sửa dòng nữa
+                             (mirror in_purchase: state confirmed lock
+                             stock.move). -->
                         <field name="line_ids"
                                nolabel="1"
                                colspan="2"
-                               readonly="state == 'done' or (not lot_name and not lot_id)"
+                               readonly="state == 'done' or (not lot_name and not lot_id) or t4_cost_confirmed"
                                context="{
                                    'default_line_type': 'used',
                                    'wizard_type': type,
@@ -144,6 +164,7 @@
                                 <field name="tracking" string="Tracking" optional="hide"/>
                                 <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
                                 <field name="parent_state" column_invisible="1"/>
+                                <field name="parent_cost_confirmed" column_invisible="1"/>
                                 <field name="lot_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                                 <field name="product_id"
@@ -176,7 +197,7 @@
                                 <field name="standard_price"
                                        string="Đơn Giá Mua"
                                        widget="monetary"
-                                       readonly="parent_state == 'done' or not product_id"
+                                       readonly="parent_state == 'done' or not product_id or parent_cost_confirmed"
                                        groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                 <field name="total_standard_price"
