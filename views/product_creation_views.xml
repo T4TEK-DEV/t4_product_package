@@ -43,7 +43,7 @@
                             string="Xác Nhận Giá Mua"
                             type="object"
                             class="oe_highlight"
-                            groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"
+                            groups="t4_sti.group_purchase,t4_sti.group_manager"
                             invisible="type != 'identify' or state != 'draft' or not line_ids or t4_cost_confirmed"/>
                     <!-- Xác Nhận: ẩn khi config bắt buộc in (theo type) mà chưa
                          in. Với identify, thêm gate t4_cost_confirmed. Context
@@ -113,11 +113,11 @@
                             <field name="purchase_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_warehouse_keeper,t4_sti.group_accounting,t4_sti.group_manager"/>
+                                   groups="t4_sti.group_purchase,t4_sti.group_manager"/>
                             <field name="total_standard_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_warehouse_keeper,t4_sti.group_accounting,t4_sti.group_manager"/>
+                                   groups="t4_sti.group_purchase,t4_sti.group_manager"/>
                         </group>
                     </group>
 
@@ -198,13 +198,13 @@
                                        string="Đơn Giá Mua"
                                        widget="monetary"
                                        readonly="parent_state == 'done' or not product_id or parent_cost_confirmed"
-                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                 <field name="total_standard_price"
                                        string="Thành Tiền"
                                        widget="monetary"
                                        sum="Tổng Thành Tiền"
-                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
                             </list>
                         </field>
                     </group>

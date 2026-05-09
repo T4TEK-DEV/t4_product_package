@@ -605,36 +605,56 @@ class ProductCreation(models.Model):
         fg_location = fg_quant.location_id
 
         # ----------------------------------------------------------
-        # Pass 1: tạo lot + collect cost-buckets cho batch write
+        # Pass 1: tạo lot (chỉ cho tracked) + collect cost-buckets
+        # cho batch write. Tracking='none' không tạo lot — chỉ tạo
+        # quant không lot ở Pass 2.
         # ----------------------------------------------------------
         cost_to_lots = defaultdict(lambda: Lot)
         cost_to_products = defaultdict(lambda: Product)
-        line_lot_pairs = []  # [(line, new_lot)]
+        line_lot_pairs = []  # [(line, new_lot or empty recordset)]
 
         for line in self.line_ids:
-            if line.lot_id or not line.lot_name or not line.product_id:
+            if not line.product_id:
                 continue
             if not line.quantity or line.quantity <= 0:
                 continue
+            if line.lot_id:
+                # Idempotent: line đã được xử lý (vd. retry sau lỗi)
+                continue
 
-            lot_vals = {
-                'name': line.lot_name.strip(),
-                'product_id': line.product_id.id,
-                'company_id': self.company_id.id,
-            }
-            if has_brand and line.brand_part_id:
-                lot_vals['brand_part_id'] = line.brand_part_id
-            if has_mfr and line.manufacturer_part_id:
-                lot_vals['manufacturer_part_id'] = line.manufacturer_part_id
+            tracking = line.product_id.tracking
+            new_lot = Lot  # empty default cho tracking='none'
 
-            new_lot = Lot.create(lot_vals)
-            line.lot_id = new_lot
+            if tracking != 'none':
+                # Tracked product (serial / lot) → cần lot_name + tạo
+                # stock.lot record. Validation đã đảm bảo lot_name có
+                # tại action_confirm_cost (cho serial) — tracking='lot'
+                # tạm bỏ qua nếu lot_name rỗng (view chưa hỗ trợ).
+                if not line.lot_name:
+                    continue
+                lot_vals = {
+                    'name': line.lot_name.strip(),
+                    'product_id': line.product_id.id,
+                    'company_id': self.company_id.id,
+                }
+                if has_brand and line.brand_part_id:
+                    lot_vals['brand_part_id'] = line.brand_part_id
+                if has_mfr and line.manufacturer_part_id:
+                    lot_vals['manufacturer_part_id'] = line.manufacturer_part_id
+
+                new_lot = Lot.create(lot_vals)
+                line.lot_id = new_lot
+
             line_lot_pairs.append((line, new_lot))
 
+            # Cost bucket: lot_valuated CHỈ áp dụng cho product có
+            # tracking != 'none' (Odoo enforce). Tracking='none' luôn
+            # rớt xuống product.standard_price (mirror in_purchase
+            # `_t4_apply_cost` fallback).
             cost = line.standard_price or 0.0
             if cost > 0:
                 product = line.product_id
-                if product.lot_valuated and product.tracking != 'none':
+                if new_lot and product.lot_valuated and tracking != 'none':
                     cost_to_lots[cost] |= new_lot
                 else:
                     cost_to_products[cost] |= product
@@ -648,17 +668,21 @@ class ProductCreation(models.Model):
             products.standard_price = cost
 
         # ----------------------------------------------------------
-        # Pass 2: tạo quant với inventory_quantity → _apply_inventory
+        # Pass 2: tạo quant với inventory_quantity → _apply_inventory.
+        # Tracking='none' tạo quant không lot_id (Odoo cho phép); svl
+        # sẽ dùng product.standard_price đã set ở Pass 1.
         # ----------------------------------------------------------
         quants_to_apply = Quant
         for line, new_lot in line_lot_pairs:
-            new_quant = Quant.with_context(inventory_mode=True).create({
+            quant_vals = {
                 'product_id': line.product_id.id,
                 'location_id': fg_location.id,
-                'lot_id': new_lot.id,
                 'inventory_quantity': line.quantity,
                 'inventory_quantity_set': True,
-            })
+            }
+            if new_lot:
+                quant_vals['lot_id'] = new_lot.id
+            new_quant = Quant.with_context(inventory_mode=True).create(quant_vals)
             quants_to_apply |= new_quant
 
         if quants_to_apply:
