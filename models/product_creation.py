@@ -540,39 +540,89 @@ class ProductCreation(models.Model):
                         'context': {'default_creation_id': rec.id},
                     }
 
+            # FG đã phải tồn tại tại kho Lắp ráp với quant > 0 trước khi
+            # lắp ráp — _check_lot_location enforce điều này. Không tạo
+            # lot mới ở đây: nghiệp vụ "lắp ráp = lấy hàng có sẵn".
             if rec.lot_name and not rec.lot_id:
                 lot = self.env['stock.lot'].search([
                     ('name', '=', rec.lot_name.strip()),
                     ('product_id', '=', rec.product_id.id),
                 ], limit=1)
-                if lot:
-                    rec.lot_id = lot
-                elif rec.product_id.tracking == 'serial':
-                    rec.lot_id = self.env['stock.lot'].create({
-                        'name': rec.lot_name.strip(),
-                        'product_id': rec.product_id.id,
-                        'company_id': rec.company_id.id,
-                    })
-                else:
+                if not lot:
                     raise UserError(_(
                         'Không tìm thấy Mã Quản Lý "%(name)s" cho thành phẩm '
-                        '"%(product)s". Vui lòng kiểm tra lại.',
+                        '"%(product)s". Lắp ráp chỉ được thực hiện trên thành '
+                        'phẩm đã tồn tại tại kho Lắp ráp.',
                         name=rec.lot_name,
                         product=rec.product_id.display_name,
                     ))
+                rec.lot_id = lot
+            if not rec.lot_id:
+                raise UserError(_(
+                    'Phiếu Lắp Ráp phải có Mã Quản Lý TP hợp lệ — thành phẩm '
+                    'chưa được nhập kho Lắp ráp thì chưa lắp ráp được.'
+                ))
 
-            if not rec.lot_id and rec.product_id.tracking == 'serial':
-                rec.lot_id = self.env['stock.lot'].create({
-                    'product_id': rec.product_id.id,
-                    'company_id': rec.company_id.id,
-                })
-                if not rec.lot_name:
-                    rec.lot_name = rec.lot_id.name
+            rec._t4_check_returned_consistency()
 
             if rec.packing_request_id:
                 rec._sync_packing_request_qty_packed()
 
             rec.state = 'done'
+
+    def _t4_check_returned_consistency(self):
+        """Validate net qty (committed + used − returned) ≥ 0 per (product, lot).
+
+        Chạy ngay trước khi confirm. Cho phép returned bằng tổng:
+            committed_qty (đã có trong FG từ phiếu done trước)
+          + used_in_this_phieu (đã thêm vào tab Sử Dụng cùng phiếu)
+
+        Tránh per-line constraint vì khi user flip dòng từ used→returned
+        ở draft (UX phổ biến), constraint sẽ fire sai timing — chỉ kiểm
+        tra cuối ở confirm là đủ và ít noise hơn.
+        """
+        self.ensure_one()
+        if self.type != 'assembly' or not self.lot_id:
+            return
+        committed = self.lot_id._t4_get_committed_components()
+        # Gom theo (product_id, lot_id) cho mọi dòng của phiếu này
+        per_key_used = {}
+        per_key_returned = {}
+        for ln in self.line_ids:  # state='used'
+            if not ln.product_id or not ln.quantity:
+                continue
+            key = (ln.product_id.id, ln.lot_id.id or 0)
+            per_key_used[key] = per_key_used.get(key, 0.0) + ln.quantity
+        for ln in self.line_returned_ids:  # state='returned'
+            if not ln.product_id or not ln.quantity:
+                continue
+            key = (ln.product_id.id, ln.lot_id.id or 0)
+            per_key_returned[key] = per_key_returned.get(key, 0.0) + ln.quantity
+
+        errors = []
+        for key, ret_qty in per_key_returned.items():
+            committed_qty = committed.get(key, 0.0)
+            used_qty = per_key_used.get(key, 0.0)
+            allowance = committed_qty + used_qty
+            if ret_qty > allowance:
+                product = self.env['product.product'].browse(key[0])
+                lot = self.env['stock.lot'].browse(key[1]) if key[1] else None
+                label = product.display_name
+                if lot:
+                    label = '%s [lot %s]' % (label, lot.name)
+                errors.append(_(
+                    'Trả %(req)g của "%(comp)s" cho FG "%(fg)s" — vượt '
+                    'mức cho phép %(max)g (đã có trong FG: %(committed)g, '
+                    'mới thêm trong phiếu này: %(new)g).',
+                    req=ret_qty,
+                    comp=label,
+                    fg=self.lot_id.name,
+                    max=allowance,
+                    committed=committed_qty,
+                    new=used_qty,
+                ))
+        if errors:
+            raise UserError('\n'.join(errors))
 
     def action_confirm_cost(self):
         """Xác nhận giá và nhập kho — chỉ cho phiếu Định Danh ở Chờ Nhập Giá.

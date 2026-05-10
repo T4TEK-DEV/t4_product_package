@@ -278,12 +278,59 @@ class ProductCreationLine(models.Model):
             state_label = state_map.get(phieu.state, phieu.state)
             tab = _('Linh Kiện Trả') if conflict.state == 'returned' \
                 else _('Linh Kiện Sử Dụng')
+            fg_label = phieu.lot_id.name or phieu.lot_name or _('chưa scan')
             raise ValidationError(_(
                 'Thao tác không hợp lệ: Mã "%(name)s" đang được phiếu '
-                '[%(phieu)s] (%(state)s) chứa trong tab %(tab)s. '
-                'Kiểm tra phiếu đó trước khi tiếp tục.',
+                '[%(phieu)s] (%(state)s) của FG "%(fg)s" chứa trong tab '
+                '%(tab)s. Kiểm tra phiếu đó trước khi tiếp tục.',
                 name=name,
                 phieu=phieu.name or str(phieu.id),
                 state=state_label,
+                fg=fg_label,
                 tab=tab,
             ))
+
+    @api.constrains('lot_id', 'state', 'creation_id', 'product_id')
+    def _check_lot_not_committed_to_other_fg(self):
+        """Lot/serial của linh kiện đã thuộc FG khác (done) còn ở Lắp ráp
+        thì không được sử dụng cho FG mới — phải trả từ FG cũ trước.
+
+        Chỉ áp dụng cho dòng `used` của phiếu type='assembly' chưa done.
+        Sử dụng `_t4_get_committed_components` để xét cả trường hợp lot
+        đã được trả lại bằng phiếu khác (committed_qty = 0 → cho phép).
+        """
+        for line in self:
+            if (line.creation_id.type != 'assembly'
+                    or line.creation_id.state in ('done', 'cancel')
+                    or line.state != 'used'
+                    or not line.lot_id
+                    or not line.product_id):
+                continue
+            self_fg_lot = line.creation_id.lot_id
+            assembly_location = self.env['stock.location'].search([
+                ('name', '=', 'Lắp ráp'),
+                ('usage', '=', 'internal'),
+            ], limit=1)
+            if not assembly_location:
+                continue
+            # Tìm các FG khác có lot này trong committed (sau net trả)
+            other_fg_quants = self.env['stock.quant'].sudo().search([
+                ('location_id', '=', assembly_location.id),
+                ('lot_id', '!=', False),
+                ('quantity', '>', 0),
+            ])
+            other_fg_lots = other_fg_quants.lot_id - self_fg_lot
+            key = (line.product_id.id, line.lot_id.id)
+            for fg_lot in other_fg_lots:
+                committed = fg_lot._t4_get_committed_components().get(key)
+                if committed:
+                    raise ValidationError(_(
+                        'Linh kiện "%(comp)s" (lot %(lot)s) đang thuộc FG '
+                        '"%(fg_prod)s" [%(fg_lot)s] còn ở kho Lắp ráp. '
+                        'Phải trả lại từ FG đó trước khi dùng cho FG mới.',
+                        comp=line.product_id.display_name,
+                        lot=line.lot_id.name,
+                        fg_prod=fg_lot.product_id.display_name,
+                        fg_lot=fg_lot.name,
+                    ))
+
