@@ -56,6 +56,7 @@ class ProductCreation(models.Model):
     state = fields.Selection(
         selection=[
             ('draft', 'Nháp'),
+            ('waiting', 'Chờ Nhập Giá'),
             ('done', 'Hoàn Thành'),
             ('cancel', 'Đã Huỷ'),
         ],
@@ -123,12 +124,22 @@ class ProductCreation(models.Model):
         default=lambda self: self.env.company,
         required=True,
     )
+    has_lines = fields.Boolean(
+        string='Có Linh Kiện?',
+        compute='_compute_has_lines',
+    )
+
+    @api.depends('line_ids')
+    def _compute_has_lines(self):
+        for rec in self:
+            rec.has_lines = bool(rec.line_ids)
 
     # ------------------------------------------------------------------
     # Cost confirmation (chỉ áp dụng cho type='identify')
-    # Mirror pattern in_purchase trong t4_sti.stock_picking: 2 bước
-    # — Purchase/Manager xác nhận giá trước, sau đó action_confirm tạo
-    # stock.lot + stock.quant cho linh kiện mới.
+    # Luồng mới: Operator nhập thông tin → "Hoàn Thành" (state=waiting) →
+    # Thu Mua / Quản Lý nhập giá → "Xác Nhận Giá" (tạo lots/quants/SVL →
+    # state=done).
+    # Các field t4_cost_confirm_* giữ lại cho audit trail.
     # ------------------------------------------------------------------
     t4_cost_confirmed = fields.Boolean(
         string='Đã Xác Nhận Giá Mua',
@@ -162,21 +173,21 @@ class ProductCreation(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Lines (split theo line_type qua domain trong One2many)
+    # Lines (split theo state qua domain trong One2many)
     # ------------------------------------------------------------------
     line_ids = fields.One2many(
         't4.product.creation.line',
         'creation_id',
         string='Linh Kiện Sử Dụng',
-        domain=[('line_type', '=', 'used')],
-        context={'default_line_type': 'used'},
+        domain=[('state', '=', 'used')],
+        context={'default_state': 'used'},
     )
     line_returned_ids = fields.One2many(
         't4.product.creation.line',
         'creation_id',
         string='Linh Kiện Trả',
-        domain=[('line_type', '=', 'returned')],
-        context={'default_line_type': 'returned'},
+        domain=[('state', '=', 'returned')],
+        context={'default_state': 'returned'},
         help='Chỉ dùng khi type=assembly để ghi nhận linh kiện trả lại '
              '(thay thế / hư hỏng).',
     )
@@ -266,13 +277,38 @@ class ProductCreation(models.Model):
     # ------------------------------------------------------------------
     # Constraints
     # ------------------------------------------------------------------
-    @api.constrains('line_ids', 'type')
-    def _check_identify_single_used_line(self):
+    @api.constrains('lot_id', 'lot_name', 'type')
+    def _check_lot_location(self):
         for rec in self:
-            if rec.type == 'identify' and len(rec.line_ids) > 1:
-                raise ValidationError(_(
-                    'Phiếu Định Danh chỉ cho phép 1 dòng Linh Kiện Sử Dụng.'
-                ))
+            if not rec.type or rec.state in ('done', 'cancel'):
+                continue
+            if rec.type == 'identify':
+                if rec.lot_name and not rec.lot_id:
+                    raise ValidationError(_(
+                        'Không tìm thấy sản phẩm với Mã Quản Lý TP "%s" trong kho.'
+                    ) % rec.lot_name)
+                if rec.lot_id:
+                    restricted_quant = self.env['stock.quant'].search([
+                        ('lot_id', '=', rec.lot_id.id),
+                        ('location_id.is_usage_restricted', '=', True),
+                        ('quantity', '>', 0),
+                    ], limit=1)
+                    if restricted_quant:
+                        raise ValidationError(_(
+                            'Sản phẩm "%s" đang nằm ở vị trí bị hạn chế sử dụng (%s).'
+                        ) % (rec.lot_id.name, restricted_quant.location_id.display_name))
+            elif rec.type == 'assembly' and rec.lot_id:
+                quant = self.env['stock.quant'].search([
+                    ('lot_id', '=', rec.lot_id.id),
+                    ('location_id.name', '=', 'Lắp ráp'),
+                    ('location_id.usage', '=', 'internal'),
+                    ('quantity', '>', 0),
+                ], limit=1)
+                if not quant:
+                    raise ValidationError(_(
+                        'Sản phẩm "%s" không nằm ở kho Lắp Ráp. '
+                        'Chỉ được lắp ráp thành phẩm đang có mặt tại kho Lắp Ráp.'
+                    ) % rec.lot_id.name)
 
     # ------------------------------------------------------------------
     # Onchange — auto-resolve lot_name → lot_id + product_id khi user
@@ -287,6 +323,8 @@ class ProductCreation(models.Model):
               * set lot_id (Brd/Mfr S/N tự load qua related field)
               * set product_id từ lot.product_id để user khỏi chọn lại
                 thành phẩm — RFID là source-of-truth.
+              * Nếu type='identify': kiểm tra thêm vị trí — cảnh báo nếu
+                lot đang nằm ở location có is_usage_restricted=True.
           - Không khớp → giữ lot_name; lot_id sẽ được tạo (assembly) hoặc
             báo lỗi (identify) tại action_confirm.
         """
@@ -296,10 +334,37 @@ class ProductCreation(models.Model):
             ('name', '=', self.lot_name.strip()),
         ], limit=1)
         if not lot:
+            if self.type in ('identify', 'assembly'):
+                self.lot_id = False
+                self.product_id = False
+                return {
+                    'warning': {
+                        'title': _('Cảnh báo'),
+                        'message': _('Không tìm thấy sản phẩm với Mã Quản Lý TP "%s" trong kho.') % self.lot_name,
+                    }
+                }
             return
         self.lot_id = lot
         if lot.product_id:
             self.product_id = lot.product_id
+        if self.type == 'identify':
+            restricted_quant = self.env['stock.quant'].search([
+                ('lot_id', '=', lot.id),
+                ('location_id.is_usage_restricted', '=', True),
+                ('quantity', '>', 0),
+            ], limit=1)
+            if restricted_quant:
+                return {
+                    'warning': {
+                        'title': _('Vị trí bị hạn chế'),
+                        'message': _(
+                            'Sản phẩm "%s" đang nằm ở vị trí bị hạn chế sử dụng (%s).'
+                        ) % (lot.name, restricted_quant.location_id.display_name),
+                    }
+                }
+        # Note: Validation kho Lắp Ráp cho type='assembly' đã được xử lý
+        # ở @api.constrains _check_lot_location khi save — không duplicate
+        # ở onchange để tránh popup hiện 2 lần.
 
     @api.onchange('lot_id')
     def _onchange_lot_id(self):
@@ -323,18 +388,128 @@ class ProductCreation(models.Model):
     # ------------------------------------------------------------------
     # Workflow actions
     # ------------------------------------------------------------------
-    def action_confirm(self):
-        """Xác nhận phiếu — chuyển state=done.
+    def action_complete(self):
+        """Hoàn thành nhập liệu — chuyển phiếu Định Danh sang Chờ Nhập Giá.
 
-        Với type='assembly': tự tạo lot mới cho FG nếu chưa có và FG
-        là tracking='serial'. Đồng bộ qty_packed lên packing_request_id
-        nếu liên kết.
+        Người vận hành hoàn tất nhập thông tin linh kiện (mã serial,
+        Brd/Mfr S/N, số lượng). Phiếu bị khoá nhập liệu, chuyển sang
+        state='waiting' để Thu Mua / Quản Lý nhập đơn giá rồi xác nhận.
+
+        Không validate standard_price — phần đó do Thu Mua làm ở
+        action_confirm_cost.
+        """
+        self.ensure_one()
+        if self.type != 'identify':
+            raise UserError(_('Chỉ phiếu Định Danh LK TP mới dùng nút này.'))
+        if self.state != 'draft':
+            raise UserError(_('Chỉ phiếu ở trạng thái Nháp mới có thể hoàn thành.'))
+        if not self.line_ids:
+            raise UserError(_(
+                'Phiếu phải có ít nhất 1 dòng linh kiện trước khi hoàn thành.'
+            ))
+        if not self.lot_name and not self.lot_id:
+            raise UserError(_('Vui lòng nhập Mã Quản Lý TP trước khi hoàn thành.'))
+
+        no_product = self.line_ids.filtered(lambda l: not l.product_id)
+        if no_product:
+            raise UserError(_('Có dòng Linh Kiện Sử Dụng chưa chọn sản phẩm.'))
+
+        zero_qty = self.line_ids.filtered(
+            lambda l: not l.quantity or l.quantity <= 0
+        )
+        if zero_qty:
+            names = ', '.join(zero_qty.mapped('product_id.display_name')[:5])
+            raise UserError(_(
+                'Vui lòng nhập Số Lượng (> 0) cho tất cả linh kiện. '
+                'Dòng còn thiếu: %(names)s',
+                names=names,
+            ))
+
+        no_lot = self.line_ids.filtered(
+            lambda l: l.product_id.tracking == 'serial' and not l.lot_name
+        )
+        if no_lot:
+            names = ', '.join(no_lot.mapped('product_id.display_name')[:5])
+            raise UserError(_(
+                'Linh kiện tracking serial phải có Mã Quản Lý. '
+                'Dòng còn thiếu: %(names)s',
+                names=names,
+            ))
+
+        # Kiểm tra brand_part_id / manufacturer_part_id không trùng hệ thống
+        # và không trùng nhau trong cùng phiếu — phải chạy ở đây thay vì để
+        # DB ném lỗi tại action_confirm_cost khi đã sang trạng thái waiting.
+        Lot = self.env['stock.lot'].sudo()
+        brd_seen, mfr_seen = {}, {}
+        for line in self.line_ids:
+            if not line.lot_name:
+                continue
+            pid = line.product_id.id
+
+            if line.brand_part_id:
+                key = (pid, line.brand_part_id)
+                if key in brd_seen:
+                    raise UserError(_(
+                        'S/N Nhãn Hiệu "%(sn)s" của sản phẩm "%(prod)s" '
+                        'xuất hiện nhiều hơn 1 lần trong cùng phiếu.',
+                        sn=line.brand_part_id,
+                        prod=line.product_id.display_name,
+                    ))
+                brd_seen[key] = True
+                dup = Lot.search(
+                    [('product_id', '=', pid), ('brand_part_id', '=', line.brand_part_id)],
+                    limit=1,
+                )
+                if dup:
+                    raise UserError(_(
+                        'S/N Nhãn Hiệu "%(sn)s" của linh kiện "%(prod)s" '
+                        'đã tồn tại trong hệ thống (Lot: %(lot)s). '
+                        'Không thể định danh trùng.',
+                        sn=line.brand_part_id,
+                        prod=line.product_id.display_name,
+                        lot=dup.name,
+                    ))
+
+            if line.manufacturer_part_id:
+                key = (pid, line.manufacturer_part_id)
+                if key in mfr_seen:
+                    raise UserError(_(
+                        'S/N Nhà Sản Xuất "%(sn)s" của sản phẩm "%(prod)s" '
+                        'xuất hiện nhiều hơn 1 lần trong cùng phiếu.',
+                        sn=line.manufacturer_part_id,
+                        prod=line.product_id.display_name,
+                    ))
+                mfr_seen[key] = True
+                dup = Lot.search(
+                    [('product_id', '=', pid), ('manufacturer_part_id', '=', line.manufacturer_part_id)],
+                    limit=1,
+                )
+                if dup:
+                    raise UserError(_(
+                        'S/N Nhà Sản Xuất "%(sn)s" của linh kiện "%(prod)s" '
+                        'đã tồn tại trong hệ thống (Lot: %(lot)s). '
+                        'Không thể định danh trùng.',
+                        sn=line.manufacturer_part_id,
+                        prod=line.product_id.display_name,
+                        lot=dup.name,
+                    ))
+
+        self.state = 'waiting'
+        self.message_post(body=_(
+            'Hoàn thành nhập liệu bởi %(user)s. '
+            'Đang chờ Thu Mua / Quản Lý nhập đơn giá và xác nhận.',
+            user=self.env.user.name,
+        ))
+
+    def action_confirm(self):
+        """Xác nhận phiếu — chỉ dùng cho type='assembly'.
+
+        Với type='identify': dùng action_complete() → action_confirm_cost().
 
         Sign-wizard intercept (mirror stock.picking.button_validate):
-            - Đọc flag `is_required_print_assembly|identify` từ context
-              (do `t4_sti.ir_http.session_info` inject vào user_context).
-            - Nếu type tương ứng require print: enforce `is_have_printed`
-              và mở wizard upload ảnh nếu chưa có attachment.
+            - Đọc flag `is_required_print_assembly` từ context.
+            - Nếu require print: enforce `is_have_printed` và mở wizard
+              upload ảnh nếu chưa có attachment.
             - Wizard re-call method này với `t4_bypass_sign_wizard=True`.
         """
         ctx = self.env.context
@@ -342,33 +517,29 @@ class ProductCreation(models.Model):
         for rec in self:
             if rec.state == 'done':
                 continue
-            if not rec.line_ids:
+            if rec.type == 'identify':
+                raise UserError(_(
+                    'Phiếu Định Danh LK TP: dùng nút "Hoàn Thành" rồi '
+                    '"Xác Nhận Giá" thay vì Xác Nhận trực tiếp.'
+                ))
+            if not rec.line_ids and not rec.line_returned_ids:
                 raise UserError(_(
                     'Phiếu phải có ít nhất 1 dòng linh kiện trước khi xác nhận.'
                 ))
 
-            # Sign-wizard intercept — chỉ chạy cho phiếu thật sự require print.
-            if not bypass_wizard:
-                requires_sign = (
-                    (rec.type == 'assembly' and ctx.get('is_required_print_assembly'))
-                    or (rec.type == 'identify' and ctx.get('is_required_print_identify'))
-                )
-                if requires_sign:
-                    if not rec.is_have_printed:
-                        raise UserError(_(
-                            'Vui lòng in phiếu trước khi xác nhận.'
-                        ))
-                    if not rec.image_tracking_attachment_id:
-                        return {
-                            'type': 'ir.actions.act_window',
-                            'name': _('Upload Hình Ảnh Xác Minh'),
-                            'res_model': 't4.product.creation.sign.wizard',
-                            'view_mode': 'form',
-                            'target': 'new',
-                            'context': {'default_creation_id': rec.id},
-                        }
+            if not bypass_wizard and ctx.get('is_required_print_assembly'):
+                if not rec.is_have_printed:
+                    raise UserError(_('Vui lòng in phiếu trước khi xác nhận.'))
+                if not rec.image_tracking_attachment_id:
+                    return {
+                        'type': 'ir.actions.act_window',
+                        'name': _('Upload Hình Ảnh Xác Minh'),
+                        'res_model': 't4.product.creation.sign.wizard',
+                        'view_mode': 'form',
+                        'target': 'new',
+                        'context': {'default_creation_id': rec.id},
+                    }
 
-            # Resolve lot_name → lot_id (find existing or create for assembly).
             if rec.lot_name and not rec.lot_id:
                 lot = self.env['stock.lot'].search([
                     ('name', '=', rec.lot_name.strip()),
@@ -376,7 +547,7 @@ class ProductCreation(models.Model):
                 ], limit=1)
                 if lot:
                     rec.lot_id = lot
-                elif rec.type == 'assembly' and rec.product_id.tracking == 'serial':
+                elif rec.product_id.tracking == 'serial':
                     rec.lot_id = self.env['stock.lot'].create({
                         'name': rec.lot_name.strip(),
                         'product_id': rec.product_id.id,
@@ -390,7 +561,7 @@ class ProductCreation(models.Model):
                         product=rec.product_id.display_name,
                     ))
 
-            if rec.type == 'assembly' and not rec.lot_id and rec.product_id.tracking == 'serial':
+            if not rec.lot_id and rec.product_id.tracking == 'serial':
                 rec.lot_id = self.env['stock.lot'].create({
                     'product_id': rec.product_id.id,
                     'company_id': rec.company_id.id,
@@ -398,121 +569,33 @@ class ProductCreation(models.Model):
                 if not rec.lot_name:
                     rec.lot_name = rec.lot_id.name
 
-            if rec.type == 'identify' and not rec.lot_id:
-                raise UserError(_(
-                    'Phiếu định danh phải có Mã Quản Lý TP trước khi '
-                    'xác nhận.'
-                ))
-
-            # Identify-only gates: cost-confirm bắt buộc + tạo stock.lot
-            # + stock.quant cho linh kiện mới định danh.
-            if rec.type == 'identify':
-                if not rec.t4_cost_confirmed:
-                    raise UserError(_(
-                        'Vui lòng xác nhận giá mua trước khi xác nhận phiếu '
-                        '(yêu cầu quyền Thu Mua / Quản Lý).'
-                    ))
-                # Re-validate: nếu user thêm dòng mới sau cost-confirm,
-                # standard_price có thể = 0 → buộc đặt về Nháp & xác nhận
-                # giá lại.
-                zero_price = rec.line_ids.filtered(
-                    lambda l: not l.standard_price or l.standard_price <= 0
-                )
-                if zero_price:
-                    names = ', '.join(
-                        zero_price.mapped('product_id.display_name')[:5]
-                    )
-                    raise UserError(_(
-                        'Có dòng linh kiện chưa có giá mua: %(names)s. '
-                        'Vui lòng đặt phiếu về Nháp và xác nhận lại giá.',
-                        names=names,
-                    ))
-                rec._t4_create_component_lots()
-
             if rec.packing_request_id:
                 rec._sync_packing_request_qty_packed()
 
             rec.state = 'done'
 
     def action_confirm_cost(self):
-        """Xác nhận giá mua cho phiếu Định Danh LK TP.
+        """Xác nhận giá và nhập kho — chỉ cho phiếu Định Danh ở Chờ Nhập Giá.
 
-        Mirror pattern in_purchase (`stock.picking._t4_check_demand_not_zero`
-        + `_t4_confirm_cost`):
-            - Chỉ áp dụng cho phiếu type='identify' state='draft'.
-            - Validate mọi dòng:
-              + product_id đã set
-              + quantity > 0
-              + lot_name có khi tracking == 'serial'
-              + standard_price > 0
-              + brand/manufacturer S/N nếu config require (đọc context,
-                fallback singleton t4.sti.config).
-            - Set 3 field cost_confirm + post message vào chatter.
-            - Lock UI: x2many `line_ids` readonly khi t4_cost_confirmed
-              (xem view).
+        Thu Mua / Quản Lý nhập đơn giá cho từng dòng linh kiện, sau đó
+        xác nhận. Một bước duy nhất thực hiện toàn bộ:
+          1. Validate giá > 0 cho mọi dòng.
+          2. Resolve lot_name → lot_id cho header TP.
+          3. Tạo stock.lot cho linh kiện (serial/lot tracked).
+          4. Tạo stock.quant + _apply_inventory() → SVL + journal entries.
+          5. Chuyển state = done.
 
-        Quyền hiển thị/gọi: thực thi qua group purchase/accounting/manager
-        (declared trên button XML).
+        Quyền: group_purchase hoặc group_manager (khai báo trên button XML).
         """
         self.ensure_one()
         if self.type != 'identify':
+            raise UserError(_('Chỉ phiếu Định Danh LK TP mới cần xác nhận giá.'))
+        if self.state != 'waiting':
             raise UserError(_(
-                'Chỉ phiếu Định Danh LK TP mới cần xác nhận giá mua.'
+                'Phiếu phải ở trạng thái "Chờ Nhập Giá" trước khi xác nhận giá.'
             ))
-        if self.state != 'draft':
-            raise UserError(_(
-                'Chỉ phiếu ở trạng thái Nháp mới có thể xác nhận giá.'
-            ))
-        if self.t4_cost_confirmed:
-            raise UserError(_('Giá đã được xác nhận trước đó.'))
         if not self.line_ids:
-            raise UserError(_(
-                'Phiếu chưa có dòng Linh Kiện Sử Dụng để xác nhận giá.'
-            ))
-
-        # Đọc flag config từ context (t4_sti.ir_http.session_info inject);
-        # fallback singleton nếu thiếu (case CLI / migration / cron).
-        ctx = self.env.context
-        is_have_brand = ctx.get('is_have_brand')
-        is_have_mfr = ctx.get('is_have_manufacturer')
-        if is_have_brand is None or is_have_mfr is None:
-            cfg = self.env['t4.sti.config'].sudo()._get_default()
-            if is_have_brand is None:
-                is_have_brand = bool(cfg and cfg.is_have_brand)
-            if is_have_mfr is None:
-                is_have_mfr = bool(cfg and cfg.is_have_manufacturer)
-
-        # Validate: missing product_id (chống dòng rỗng do paste/import)
-        no_product = self.line_ids.filtered(lambda l: not l.product_id)
-        if no_product:
-            raise UserError(_(
-                'Có dòng Linh Kiện Sử Dụng chưa chọn sản phẩm — '
-                'vui lòng kiểm tra lại.'
-            ))
-
-        # Validate: quantity > 0 (mirror _t4_check_demand_not_zero)
-        zero_qty = self.line_ids.filtered(
-            lambda l: not l.quantity or l.quantity <= 0
-        )
-        if zero_qty:
-            names = ', '.join(zero_qty.mapped('product_id.display_name')[:5])
-            raise UserError(_(
-                'Vui lòng nhập Số Lượng (> 0) cho tất cả linh kiện. '
-                'Dòng còn thiếu: %(names)s',
-                names=names,
-            ))
-
-        # Validate: lot_name bắt buộc cho serial
-        no_lot = self.line_ids.filtered(
-            lambda l: l.product_id.tracking == 'serial' and not l.lot_name
-        )
-        if no_lot:
-            names = ', '.join(no_lot.mapped('product_id.display_name')[:5])
-            raise UserError(_(
-                'Linh kiện tracking serial phải có Mã Quản Lý. '
-                'Dòng còn thiếu: %(names)s',
-                names=names,
-            ))
+            raise UserError(_('Phiếu chưa có dòng Linh Kiện Sử Dụng để xác nhận giá.'))
 
         # Validate: standard_price > 0
         zero_price = self.line_ids.filtered(
@@ -526,34 +609,56 @@ class ProductCreation(models.Model):
                 names=names,
             ))
 
-        # Validate: Brd/Mfr S/N theo config (chỉ check serial — qty/no
-        # tracking không cần Brd/Mfr).
-        if is_have_brand or is_have_mfr:
-            missing_part = self.line_ids.filtered(
-                lambda l: l.product_id.tracking == 'serial'
-                          and (
-                              (is_have_brand and not l.brand_part_id and not l.manufacturer_part_id)
-                              or (is_have_mfr and not l.manufacturer_part_id and not l.brand_part_id)
-                          )
-            )
-            if missing_part:
-                names = ', '.join(
-                    missing_part.mapped('product_id.display_name')[:5]
-                )
-                raise UserError(_(
-                    'Linh kiện serial phải có ít nhất 1 trong Brd. S/N hoặc '
-                    'Mnf. S/N. Dòng còn thiếu: %(names)s',
-                    names=names,
-                ))
+        # Sign-wizard intercept
+        ctx = self.env.context
+        bypass_wizard = ctx.get('t4_bypass_sign_wizard')
+        if not bypass_wizard and ctx.get('is_required_print_identify'):
+            if not self.is_have_printed:
+                raise UserError(_('Vui lòng in phiếu trước khi xác nhận.'))
+            if not self.image_tracking_attachment_id:
+                return {
+                    'type': 'ir.actions.act_window',
+                    'name': _('Upload Hình Ảnh Xác Minh'),
+                    'res_model': 't4.product.creation.sign.wizard',
+                    'view_mode': 'form',
+                    'target': 'new',
+                    'context': {'default_creation_id': self.id},
+                }
 
+        # Resolve lot_name → lot_id cho TP header (phải tồn tại sẵn)
+        if self.lot_name and not self.lot_id:
+            lot = self.env['stock.lot'].search([
+                ('name', '=', self.lot_name.strip()),
+                ('product_id', '=', self.product_id.id),
+            ], limit=1)
+            if lot:
+                self.lot_id = lot
+            else:
+                raise UserError(_(
+                    'Không tìm thấy Mã Quản Lý "%(name)s" cho thành phẩm '
+                    '"%(product)s". Vui lòng kiểm tra lại.',
+                    name=self.lot_name,
+                    product=self.product_id.display_name,
+                ))
+        if not self.lot_id:
+            raise UserError(_('Phiếu định danh phải có Mã Quản Lý TP trước khi xác nhận.'))
+
+        # Lưu audit trail
         self.write({
             't4_cost_confirmed': True,
             't4_cost_confirm_user_id': self.env.user.id,
             't4_cost_confirm_date': fields.Datetime.now(),
         })
+
+        # Tạo stock.lot + stock.quant + SVL
+        self._t4_create_component_lots()
+
+        if self.packing_request_id:
+            self._sync_packing_request_qty_packed()
+
+        self.state = 'done'
         self.message_post(body=_(
-            'Đã xác nhận giá mua bởi %(user)s. Tổng giá: %(total)s. '
-            'Các dòng linh kiện đã được khoá.',
+            'Đã xác nhận giá và nhập kho bởi %(user)s. Tổng giá: %(total)s.',
             user=self.env.user.name,
             total=self.total_standard_price,
         ))
@@ -592,9 +697,19 @@ class ProductCreation(models.Model):
         has_brand = 'brand_part_id' in Lot._fields
         has_mfr = 'manufacturer_part_id' in Lot._fields
 
+        # Ưu tiên quant có quantity > 0 ở vị trí không bị restricted (Kho Tạm
+        # có thể còn remnant qty=0 với ID thấp → [:1] sẽ pick sai nếu không lọc).
         fg_quant = self.lot_id.quant_ids.filtered(
             lambda q: q.location_id.usage == 'internal'
+            and not q.location_id.is_usage_restricted
+            and q.quantity > 0
         )[:1]
+        if not fg_quant:
+            # Fallback: bất kỳ internal quant nào (trường hợp location không
+            # đánh is_usage_restricted nhưng vẫn là nội bộ hợp lệ)
+            fg_quant = self.lot_id.quant_ids.filtered(
+                lambda q: q.location_id.usage == 'internal' and q.quantity > 0
+            )[:1]
         if not fg_quant:
             raise UserError(_(
                 'Thành phẩm "%(prod)s" (lot %(lot)s) chưa có vị trí kho '
@@ -705,17 +820,19 @@ class ProductCreation(models.Model):
 
     def action_cancel(self):
         for rec in self:
-            rec.state = 'cancel'
+            if rec.state in ('draft', 'waiting'):
+                rec.state = 'cancel'
 
     def action_draft(self):
-        """Đặt về Nháp — reset cost_confirmed để cho phép xác nhận giá lại.
+        """Đặt về Nháp — cho phép từ cancel hoặc waiting (identify).
 
-        Không reset lại các stock.lot / stock.quant đã tạo (state=done →
-        cancel → draft path không xảy ra theo design vì state=done không
-        có nút cancel; chỉ cancel → draft). Nếu sau này mở rộng cho phép
-        revert state=done → cần thêm rollback logic.
+        waiting → draft: mở khoá để operator chỉnh sửa lại linh kiện.
+        cancel → draft: khởi động lại phiếu từ đầu.
+        Không rollback stock.lot / stock.quant (path done không có cancel).
         """
         for rec in self:
+            if rec.state not in ('cancel', 'waiting'):
+                continue
             rec.write({
                 'state': 'draft',
                 't4_cost_confirmed': False,
@@ -801,3 +918,17 @@ class ProductCreation(models.Model):
             "url": "/web/content/%s?download=true" % self.image_tracking_attachment_id.id,
             "target": "self",
         }
+
+    @api.model
+    def _cron_cleanup_empty_drafts(self):
+        """Dọn dẹp các phiếu nháp rỗng do auto-save của Odoo tạo ra."""
+        limit_date = fields.Datetime.subtract(fields.Datetime.now(), hours=24)
+        domain = [
+            ('state', '=', 'draft'),
+            ('line_ids', '=', False),
+            ('create_date', '<', limit_date)
+        ]
+        empty_drafts = self.search(domain)
+        if empty_drafts:
+            empty_drafts.unlink()
+

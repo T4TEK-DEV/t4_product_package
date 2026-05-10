@@ -1,6 +1,6 @@
 {
     'name': 'T4 Product Package',
-    'version': '1.0.2',
+    'version': '1.0.4',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
@@ -22,6 +22,7 @@
         'security/ir.model.access.csv',
         # 2. Data (sequences)
         'data/sequence_data.xml',
+        'data/ir_cron_cleanup.xml',
         # 3. Reports (load TRƯỚC views vì action_print dùng env.ref report)
         'reports/product_creation_report.xml',
         # 4. Wizard (load TRƯỚC views vì action_confirm trả về action tham chiếu wizard)

@@ -110,7 +110,7 @@
                                         <th style="width: 15%;">Số Lượng</th>
                                         <th style="width: 15%;">Brd. S/N</th>
                                         <th style="width: 15%;">Mfr. S/N</th>
-                                        <th style="width: 15%;">Mã Thẻ</th>
+                                        <th style="width: 15%;">Mã Quản Lý</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -121,7 +121,7 @@
                                             <td><span t-field="component.quantity"/></td>
                                             <td><span t-field="component.brand_part_id"/></td>
                                             <td><span t-field="component.manufacturer_part_id"/></td>
-                                            <td><span t-field="component.card_code"/></td>
+                                            <td><span t-field="component.lot_name"/></td>
                                         </tr>
                                     </t>
                                     <t t-if="not doc.line_ids">
@@ -274,7 +274,7 @@
                                         <th style="width: 15%;">Số Lượng</th>
                                         <th style="width: 17%;">Brd. S/N</th>
                                         <th style="width: 18%;">Mfr. S/N</th>
-                                        <th style="width: 15%;">Mã Thẻ</th>
+                                        <th style="width: 15%;">Mã Quản Lý</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -285,7 +285,7 @@
                                             <td><span t-field="component.quantity"/></td>
                                             <td><span t-field="component.brand_part_id"/></td>
                                             <td><span t-field="component.manufacturer_part_id"/></td>
-                                            <td><span t-field="component.card_code"/></td>
+                                            <td><span t-field="component.lot_name"/></td>
                                         </tr>
                                     </t>
                                     <t t-if="not doc.line_ids">

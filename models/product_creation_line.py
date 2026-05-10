@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Dòng linh kiện thuộc phiếu t4.product.creation.
 
-Mỗi dòng = 1 lần sử dụng (line_type='used') hoặc 1 lần trả lại
-(line_type='returned') của 1 linh kiện trong quá trình lắp ráp / định
+Mỗi dòng = 1 lần sử dụng (state='used') hoặc 1 lần trả lại
+(state='returned') của 1 linh kiện trong quá trình lắp ráp / định
 danh thành phẩm. Lưu snapshot giá tại thời điểm tạo để truy vết kế
 toán độc lập với lịch sử biến động giá sau này.
 """
@@ -26,7 +26,7 @@ class ProductCreationLine(models.Model):
         ondelete='cascade',
         index=True,
     )
-    line_type = fields.Selection(
+    state = fields.Selection(
         selection=[
             ('used', 'Sử Dụng'),
             ('returned', 'Trả'),
@@ -110,18 +110,6 @@ class ProductCreationLine(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Scan inputs (port từ v18: barcode_input + card_code)
-    # ------------------------------------------------------------------
-    barcode_input = fields.Char(
-        string='Barcode',
-        help='Mã vạch do người dùng nhập hoặc từ máy quét.',
-    )
-    card_code = fields.Char(
-        string='Mã Thẻ',
-        help='Mã thẻ RFID được gắn cho dòng thông tin này.',
-    )
-
-    # ------------------------------------------------------------------
     # Brand / Manufacturer Serial Number (port từ v18 supplier_part_id_temp /
     # manufacturer_part_id_temp). Là Char snapshot — đồng bộ semantic với
     # stock.lot.brand_part_id / manufacturer_part_id của module
@@ -138,7 +126,7 @@ class ProductCreationLine(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Returned line specifics (chỉ dùng khi line_type='returned')
+    # Returned line specifics (chỉ dùng khi state='returned')
     # ------------------------------------------------------------------
     is_scrap = fields.Boolean(
         string='Hư Hỏng',
@@ -221,20 +209,20 @@ class ProductCreationLine(models.Model):
     # ------------------------------------------------------------------
     # Server-side guards — chốt chặn cho luồng định danh
     # ------------------------------------------------------------------
-    @api.constrains('lot_name', 'line_type', 'creation_id')
+    @api.constrains('lot_name', 'state', 'creation_id')
     def _check_identify_lot_name_unique(self):
         """Phiếu Định Danh LK TP: lot_name của Linh Kiện Sử Dụng phải
         chưa tồn tại trong hệ thống và không được trùng giữa các dòng.
 
         Backup cho onchange (warning có thể bị bypass khi tạo qua RPC,
-        import, hoặc paste batch). Chỉ áp dụng cho line_type='used' của
+        import, hoặc paste batch). Chỉ áp dụng cho state='used' của
         phiếu type='identify'.
         """
         Lot = self.env['stock.lot'].sudo()
         for rec in self:
             if rec.creation_id.type != 'identify':
                 continue
-            if rec.line_type != 'used':
+            if rec.state != 'used':
                 continue
             if not rec.lot_name:
                 continue
@@ -252,7 +240,7 @@ class ProductCreationLine(models.Model):
 
             siblings = rec.creation_id.line_ids.filtered(
                 lambda l: l.id != rec.id
-                          and l.line_type == 'used'
+                          and l.state == 'used'
                           and l.lot_name
                           and l.lot_name.strip() == name
             )
@@ -262,3 +250,40 @@ class ProductCreationLine(models.Model):
                     'trong cùng phiếu. Mỗi mã chỉ được định danh 1 lần.',
                     tag=name,
                 ))
+
+    @api.constrains('lot_name', 'creation_id')
+    def _check_lot_name_not_in_active_phieu(self):
+        """Chặn lot_name đang được dùng trong phiếu khác chưa hoàn thành.
+
+        Cover cả line_ids (state='used') lẫn line_returned_ids
+        (state='returned') của phiếu lắp ráp. Bỏ qua khi phiếu
+        hiện tại đã done/cancel.
+        """
+        for line in self:
+            if not line.lot_name or line.creation_id.state in ('done', 'cancel'):
+                continue
+            name = line.lot_name.strip()
+            conflict = self.search([
+                ('id', '!=', line.id),
+                ('lot_name', '=', name),
+                ('creation_id', '!=', line.creation_id.id),
+                ('creation_id.state', 'in', ('draft', 'waiting')),
+            ], limit=1)
+            if not conflict:
+                continue
+            phieu = conflict.creation_id
+            state_map = dict(
+                self.env['t4.product.creation']._fields['state'].selection
+            )
+            state_label = state_map.get(phieu.state, phieu.state)
+            tab = _('Linh Kiện Trả') if conflict.state == 'returned' \
+                else _('Linh Kiện Sử Dụng')
+            raise ValidationError(_(
+                'Thao tác không hợp lệ: Mã "%(name)s" đang được phiếu '
+                '[%(phieu)s] (%(state)s) chứa trong tab %(tab)s. '
+                'Kiểm tra phiếu đó trước khi tiếp tục.',
+                name=name,
+                phieu=phieu.name or str(phieu.id),
+                state=state_label,
+                tab=tab,
+            ))

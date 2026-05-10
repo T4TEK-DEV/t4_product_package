@@ -234,7 +234,7 @@ def seed(env):
         for comp_code, qty, lot_name in lines_spec:
             comp = comp_by_code[comp_code]
             vals = {
-                "line_type": "used",
+                "state": "used",
                 "product_id": comp.id,
                 "quantity": qty,
                 "standard_price": comp.standard_price,
@@ -290,7 +290,7 @@ def seed(env):
                 combo_lines = []
                 break
             combo_lines.append((0, 0, {
-                "line_type": "used",
+                "state": "used",
                 "product_id": comp_fg.id,
                 "lot_id": prev.lot_id.id,
                 "quantity": qty,

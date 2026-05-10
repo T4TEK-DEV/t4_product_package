@@ -36,45 +36,46 @@
                             class="btn"
                             icon="fa-print"
                             invisible="not line_ids and not line_returned_ids"/>
-                    <!-- Xác Nhận Giá Mua (chỉ identify) — mirror in_purchase
-                         pattern. Hiển thị cho purchase/accounting/manager khi
-                         phiếu draft + có dòng + chưa cost_confirmed. -->
+                    <!-- Hoàn Thành (chỉ identify, draft) — Operator nhập xong
+                         linh kiện, chuyển sang Chờ Nhập Giá để Thu Mua vào. -->
+                    <button name="action_complete"
+                            string="Hoàn Thành"
+                            type="object"
+                            class="oe_highlight"
+                            confirm="Bạn có chắc chắn muốn hoàn thành phiếu định danh này không?"
+                            invisible="type != 'identify' or state != 'draft' or not line_ids"/>
+                    <!-- Xác Nhận (chỉ identify, waiting) — Thu Mua / Quản Lý
+                         nhập giá + xác nhận → tạo lots/quants/SVL → done. -->
                     <button name="action_confirm_cost"
-                            string="Xác Nhận Giá Mua"
+                            string="Xác Nhận"
                             type="object"
                             class="oe_highlight"
                             groups="t4_sti.group_purchase,t4_sti.group_manager"
-                            invisible="type != 'identify' or state != 'draft' or not line_ids or t4_cost_confirmed"/>
-                    <!-- Xác Nhận: ẩn khi config bắt buộc in (theo type) mà chưa
-                         in. Với identify, thêm gate t4_cost_confirmed. Context
-                         flag `is_required_print_assembly|identify` được inject
-                         từ t4_sti.ir_http.session_info. -->
+                            invisible="type != 'identify' or state != 'waiting'"/>
+                    <!-- Xác Nhận: chỉ dùng cho assembly. Identify dùng luồng
+                         Hoàn Thành → Xác Nhận Giá. -->
                     <button name="action_confirm"
                             string="Xác Nhận"
                             type="object"
                             class="oe_highlight"
-                            invisible="state == 'done' or (not line_ids and not line_returned_ids) or (((type == 'assembly' and context.get('is_required_print_assembly')) or (type == 'identify' and context.get('is_required_print_identify'))) and not is_have_printed) or (type == 'identify' and not t4_cost_confirmed)"/>
+                            invisible="type == 'identify' or state == 'done' or (not line_ids and not line_returned_ids) or (type == 'assembly' and context.get('is_required_print_assembly') and not is_have_printed)"/>
                     <button name="action_cancel"
                             string="Huỷ"
                             type="object"
                             invisible="state in ('done', 'cancel')"/>
-                    <button name="action_draft"
-                            string="Đặt về Nháp"
-                            type="object"
-                            invisible="state != 'cancel'"/>
+<!-- <button name="action_draft" string="Đặt về Nháp" type="object" invisible="state not in ('cancel', 'waiting')"/> -->
                     <field name="state" widget="statusbar"
-                           statusbar_visible="draft,done"/>
+                           statusbar_visible="draft,waiting,done"/>
                 </header>
 
                 <sheet>
                     <field name="lot_id" invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
-                    <field name="t4_cost_confirmed" invisible="1"/>
 
-                    <!-- Ribbon: hiển thị trạng thái đã xác nhận giá (identify) -->
+                    <!-- Ribbon: trạng thái chờ nhập giá (identify, waiting) -->
                     <widget name="web_ribbon"
-                            title="Đã Xác Nhận Giá"
-                            bg_color="text-bg-success"
-                            invisible="type != 'identify' or not t4_cost_confirmed"/>
+                            title="Chờ Nhập Giá"
+                            bg_color="text-bg-warning"
+                            invisible="type != 'identify' or state != 'waiting'"/>
 
                     <div class="oe_title">
                         <h1>
@@ -92,8 +93,9 @@
 
                     <group>
                         <group>
+                            <field name="has_lines" invisible="1"/>
                             <field name="lot_name"
-                                   readonly="state == 'done'"
+                                   readonly="state == 'done' or (type == 'identify' and state != 'draft') or has_lines"
                                    data-auto-input-order="0"
                                    placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
                             <field name="create_uid"
@@ -144,60 +146,120 @@
                     <group string="Linh Kiện Sử Dụng"
                            invisible="type != 'identify'"
                            class="oe_group_border">
-                        <!-- readonly trên field x2many lock toàn bộ:
-                             no edit, no add, no delete. Sau khi xác
-                             nhận giá → user không thể sửa dòng nữa
-                             (mirror in_purchase: state confirmed lock
-                             stock.move). -->
+                        <!-- Operator nhập liệu trong draft; Thu Mua nhập giá
+                             trong waiting. Mỗi field có readonly riêng theo state.
+                             Bảng mở để add/delete chỉ khi state='draft'. -->
+                        <!-- Bảng cho draft: được phép thêm/xóa dòng -->
                         <field name="line_ids"
                                nolabel="1"
                                colspan="2"
-                               readonly="state == 'done' or (not lot_name and not lot_id) or t4_cost_confirmed"
+                               readonly="state == 'done' or (not lot_name and not lot_id)"
+                               invisible="state != 'draft'"
                                context="{
-                                   'default_line_type': 'used',
+                                   'default_state': 'used',
                                    'wizard_type': type,
-                                   't4_auto_input_enabled': True,
+                                   't4_auto_input_enabled': type == 'identify',
                                }">
-                            <list editable="bottom" create="true" delete="true">
+                            <list editable="bottom">
                                 <field name="sequence" widget="handle"/>
-                                <field name="line_type" column_invisible="1"/>
+                                <field name="state" column_invisible="1"/>
                                 <field name="tracking" string="Tracking" optional="hide"/>
                                 <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
                                 <field name="parent_state" column_invisible="1"/>
-                                <field name="parent_cost_confirmed" column_invisible="1"/>
                                 <field name="lot_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                                 <field name="product_id"
                                        string="Sản Phẩm"
                                        required="1"
-                                       readonly="parent_state == 'done'"
+                                       readonly="parent_state != 'draft'"
                                        options="{'no_open': 1, 'no_create': 1}"
                                        context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
-                                       readonly="parent_state == 'done' or not product_id or tracking == 'serial'"
+                                       readonly="parent_state != 'draft' or not product_id or tracking == 'serial'"
                                        force_save="1"/>
                                 <field name="lot_name"
                                        string="Mã Quản Lý"
                                        data-auto-input-order="1"
                                        required="tracking == 'serial'"
-                                       readonly="parent_state == 'done' or not product_id or tracking != 'serial'"/>
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
                                 <field name="brand_part_id"
                                        string="Brd. S/N"
                                        column_invisible="not context.get('is_have_brand')"
                                        required="context.get('is_have_brand') and not manufacturer_part_id"
                                        data-auto-input-order="2"
-                                       readonly="parent_state == 'done' or not product_id or tracking != 'serial'"/>
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
                                 <field name="manufacturer_part_id"
                                        string="Mnf. S/N"
                                        column_invisible="not context.get('is_have_manufacturer')"
                                        required="context.get('is_have_manufacturer') and not brand_part_id"
                                        data-auto-input-order="3"
-                                       readonly="parent_state == 'done' or not product_id or tracking != 'serial'"/>
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
+                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác -->
                                 <field name="standard_price"
                                        string="Đơn Giá Mua"
                                        widget="monetary"
-                                       readonly="parent_state == 'done' or not product_id or parent_cost_confirmed"
+                                       readonly="parent_state != 'waiting' or not product_id"
+                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                <field name="create_date" string="Ngày Tạo" optional="hide"/>
+                                <field name="total_standard_price"
+                                       string="Thành Tiền"
+                                       widget="monetary"
+                                       sum="Tổng Thành Tiền"
+                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                            </list>
+                        </field>
+                        <!-- Bảng cho các state khác draft: KHÔNG được thêm/xóa dòng -->
+                        <field name="line_ids"
+                               nolabel="1"
+                               colspan="2"
+                               readonly="state == 'done' or (not lot_name and not lot_id)"
+                               invisible="state == 'draft'"
+                               context="{
+                                   'default_state': 'used',
+                                   'wizard_type': type,
+                                   't4_auto_input_enabled': type == 'identify',
+                               }">
+                            <list editable="bottom" create="0" delete="0">
+                                <field name="sequence" widget="handle"/>
+                                <field name="state" column_invisible="1"/>
+                                <field name="tracking" string="Tracking" optional="hide"/>
+                                <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
+                                <field name="parent_state" column_invisible="1"/>
+                                <field name="lot_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
+
+                                <field name="product_id"
+                                       string="Sản Phẩm"
+                                       required="1"
+                                       readonly="parent_state != 'draft'"
+                                       options="{'no_open': 1, 'no_create': 1}"
+                                       context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
+                                <field name="quantity"
+                                       string="Số Lượng"
+                                       readonly="parent_state != 'draft' or not product_id or tracking == 'serial'"
+                                       force_save="1"/>
+                                <field name="lot_name"
+                                       string="Mã Quản Lý"
+                                       data-auto-input-order="1"
+                                       required="tracking == 'serial'"
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
+                                <field name="brand_part_id"
+                                       string="Brd. S/N"
+                                       column_invisible="not context.get('is_have_brand')"
+                                       required="context.get('is_have_brand') and not manufacturer_part_id"
+                                       data-auto-input-order="2"
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
+                                <field name="manufacturer_part_id"
+                                       string="Mnf. S/N"
+                                       column_invisible="not context.get('is_have_manufacturer')"
+                                       required="context.get('is_have_manufacturer') and not brand_part_id"
+                                       data-auto-input-order="3"
+                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'"/>
+                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác -->
+                                <field name="standard_price"
+                                       string="Đơn Giá Mua"
+                                       widget="monetary"
+                                       readonly="parent_state != 'waiting' or not product_id"
                                        groups="t4_sti.group_purchase,t4_sti.group_manager"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                 <field name="total_standard_price"
@@ -222,16 +284,17 @@
                                        colspan="2"
                                        readonly="state == 'done' or (type == 'assembly' and not lot_name and not lot_id)"
                                        context="{
-                                           'default_line_type': 'used',
+                                           'default_state': 'used',
                                            'wizard_type': type,
-                                           't4_auto_input_enabled': True,
+                                           't4_auto_input_enabled': type == 'assembly',
                                        }">
                                     <list editable="bottom" create="true" delete="true">
                                         <field name="sequence" widget="handle"/>
-                                        <field name="line_type" column_invisible="1"/>
+                                        <field name="state" column_invisible="1"/>
                                         <field name="tracking" column_invisible="1"/>
                                         <field name="cost_currency_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
                                         <field name="parent_state" column_invisible="1"/>
+                                        <field name="lot_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                                         <field name="product_id"
                                                string="Sản Phẩm"
@@ -242,20 +305,15 @@
                                         <field name="quantity"
                                                string="Số Lượng"
                                                readonly="parent_state == 'done' or tracking == 'serial'"/>
+                                        <field name="lot_name"
+                                               string="Mã Quản Lý"
+                                               data-auto-input-order="0"
+                                               readonly="parent_state == 'done'"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               data-auto-input-order="0"
                                                readonly="parent_state == 'done'"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               data-auto-input-order="1"
-                                               readonly="parent_state == 'done'"/>
-                                        <field name="barcode_input"
-                                               string="Barcode"
-                                               data-auto-input-order="2"
-                                               readonly="parent_state == 'done'"/>
-                                        <field name="card_code"
-                                               string="Mã Thẻ"
                                                readonly="parent_state == 'done'"/>
                                         <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                     </list>
@@ -268,14 +326,15 @@
                                        nolabel="1"
                                        colspan="2"
                                        readonly="state == 'done' or (not lot_name and not lot_id)"
-                                       context="{'default_line_type': 'returned', 'wizard_type': type}">
+                                       context="{'default_state': 'returned', 'wizard_type': type}">
                                     <list editable="bottom" create="true" delete="true"
                                           decoration-warning="not is_scrap"
                                           decoration-danger="is_scrap">
                                         <field name="sequence" widget="handle"/>
-                                        <field name="line_type" column_invisible="1"/>
+                                        <field name="state" column_invisible="1"/>
                                         <field name="tracking" column_invisible="1"/>
                                         <field name="parent_state" column_invisible="1"/>
+                                        <field name="lot_id" column_invisible="1" options="{'no_open': 1, 'no_create': 1}"/>
 
                                         <field name="product_id"
                                                string="Sản Phẩm"
@@ -286,11 +345,15 @@
                                         <field name="quantity"
                                                string="Số Lượng"
                                                readonly="parent_state == 'done' or tracking == 'serial'"/>
-                                        <field name="barcode_input"
-                                               string="Barcode"
+                                        <field name="lot_name"
+                                               string="Mã Quản Lý"
+                                               data-auto-input-order="0"
                                                readonly="parent_state == 'done'"/>
-                                        <field name="card_code"
-                                               string="Mã Thẻ"
+                                        <field name="brand_part_id"
+                                               string="Brd. S/N"
+                                               readonly="parent_state == 'done'"/>
+                                        <field name="manufacturer_part_id"
+                                               string="Mnf. S/N"
                                                readonly="parent_state == 'done'"/>
                                         <field name="is_scrap"
                                                string="Hư Hỏng"
@@ -416,6 +479,7 @@
             'create': 1,
             'breadcrumb_name': 'Phiếu Lắp Ráp',
             't4_auto_input_enabled': True,
+            't4_passive_data_handler': True,
             't4_passive_buttons': [{
                 'id': 'rfid_reader',
                 'title': 'Quét',
@@ -424,6 +488,8 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'lot_name',
+                'hide_when_field_in': {'field': 'state', 'values': ['waiting', 'done', 'cancel']},
             }],
         }</field>
     </record>
@@ -439,6 +505,7 @@
             'default_type': 'assembly',
             'create': 0,
             't4_auto_input_enabled': True,
+            't4_passive_data_handler': True,
             't4_passive_buttons': [{
                 'id': 'rfid_reader',
                 'title': 'Quét',
@@ -447,6 +514,8 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'lot_name',
+                'hide_when_field_in': {'field': 'state', 'values': ['waiting', 'done', 'cancel']},
             }],
         }</field>
         <field name="help" type="html">
@@ -483,6 +552,7 @@
             'create': 1,
             'breadcrumb_name': 'Phiếu Định Danh LK TP',
             't4_auto_input_enabled': True,
+            't4_passive_data_handler': True,
             't4_passive_buttons': [{
                 'id': 'rfid_reader',
                 'title': 'Quét',
@@ -491,6 +561,8 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'lot_name',
+                'hide_when_field_in': {'field': 'state', 'values': ['waiting', 'done', 'cancel']},
             }],
         }</field>
     </record>
@@ -505,6 +577,7 @@
             'default_type': 'identify',
             'create': 0,
             't4_auto_input_enabled': True,
+            't4_passive_data_handler': True,
             't4_passive_buttons': [{
                 'id': 'rfid_reader',
                 'title': 'Quét',
@@ -513,6 +586,8 @@
                 'url': 'ws://localhost:9001',
                 'toggle': False,
                 'timeout': 2000,
+                'target_field': 'lot_name',
+                'hide_when_field_in': {'field': 'state', 'values': ['waiting', 'done', 'cancel']},
             }],
         }</field>
     </record>

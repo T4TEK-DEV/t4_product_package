@@ -27,22 +27,34 @@ class StockLot(models.Model):
             - type='assembly' done (lần đầu lắp ráp tạo FG)
             - type='identify' done (lần định danh thêm linh kiện cho FG có sẵn)
 
-        Field `store=False` → mỗi lần đọc sẽ recompute, không cần cache
-        invalidation tự động. Caller sau khi xác nhận phiếu identify
-        nên gọi `lot.invalidate_recordset(['fg_component_line_ids'])`
-        để form đang mở refresh ngay (xem
-        `t4.product.creation._t4_create_component_lots`).
+        Pattern batch: 1 search duy nhất cho toàn bộ recordset thay vì N
+        queries trong vòng lặp — quan trọng khi field được đọc cho nhiều
+        lot cùng lúc (vd. related trên stock.quant list).
+
+        Caller sau khi xác nhận phiếu identify nên gọi:
+            `lot.invalidate_recordset(['fg_component_line_ids'])`
+        để form đang mở refresh ngay (xem `_t4_create_component_lots`).
         """
-        Creation = self.env['t4.product.creation'].sudo()
+        lot_ids = [lid for lid in self.ids if lid]
+        if not lot_ids:
+            self.fg_component_line_ids = False
+            return
+
+        records = self.env['t4.product.creation'].sudo().search([
+            ('lot_id', 'in', lot_ids),
+            ('type', 'in', ['assembly', 'identify']),
+            ('state', '=', 'done'),
+        ])
+
+        # Group lines by FG lot_id — 1 pass qua records
+        Line = self.env['t4.product.creation.line']
+        lot_map = {}
+        for rec in records:
+            used = rec.line_ids.filtered(lambda l: l.state == 'used')
+            lid = rec.lot_id.id
+            if lid not in lot_map:
+                lot_map[lid] = Line
+            lot_map[lid] |= used
+
         for lot in self:
-            if not lot.id:
-                lot.fg_component_line_ids = False
-                continue
-            records = Creation.search([
-                ('lot_id', '=', lot.id),
-                ('type', 'in', ['assembly', 'identify']),
-                ('state', '=', 'done'),
-            ])
-            lot.fg_component_line_ids = records.mapped('line_ids').filtered(
-                lambda l: l.line_type == 'used'
-            )
+            lot.fg_component_line_ids = lot_map.get(lot.id, Line)
