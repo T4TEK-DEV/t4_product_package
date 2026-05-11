@@ -853,7 +853,10 @@ class ProductCreation(models.Model):
         if quants_to_apply:
             # _apply_inventory: tạo stock.move (location_inventory →
             # fg_location) + _action_done → svl + journal entries.
-            quants_to_apply._apply_inventory()
+            # Inject `t4_creation_id` qua context → stock.quant._get_inventory_move_values
+            # đọc và set lên stock.move → stock.move.line related → navigate
+            # từ "Lịch Sử Định Danh" về phiếu này.
+            quants_to_apply.with_context(t4_creation_id=self.id)._apply_inventory()
 
         # Invalidate FG lot's fg_component_line_ids để form refresh.
         self.lot_id.invalidate_recordset(['fg_component_line_ids'])
