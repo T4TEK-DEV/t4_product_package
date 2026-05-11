@@ -96,6 +96,7 @@
                             <field name="has_lines" invisible="1"/>
                             <field name="lot_name"
                                    readonly="state == 'done' or (type == 'identify' and state != 'draft') or has_lines"
+                                   force_save="1"
                                    data-auto-input-order="0"
                                    placeholder="Nhập hoặc quét mã serial của thành phẩm..."/>
                             <field name="create_uid"
@@ -299,7 +300,7 @@
                                         <field name="product_id"
                                                string="Sản Phẩm"
                                                required="1"
-                                               readonly="parent_state == 'done'"
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"
                                                options="{'no_open': 1, 'no_create': 1}"
                                                context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
@@ -308,13 +309,13 @@
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                     </list>
                                 </field>
@@ -339,7 +340,7 @@
                                         <field name="product_id"
                                                string="Sản Phẩm"
                                                required="1"
-                                               readonly="parent_state == 'done'"
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"
                                                options="{'no_open': 1, 'no_create': 1}"
                                                context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
@@ -348,13 +349,13 @@
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state == 'done'"/>
+                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']"/>
                                         <field name="is_scrap"
                                                string="Hư Hỏng"
                                                readonly="parent_state == 'done'"/>

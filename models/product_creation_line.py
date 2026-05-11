@@ -110,19 +110,18 @@ class ProductCreationLine(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Brand / Manufacturer Serial Number (port từ v18 supplier_part_id_temp /
-    # manufacturer_part_id_temp). Là Char snapshot — đồng bộ semantic với
-    # stock.lot.brand_part_id / manufacturer_part_id của module
-    # t4_sti_brand_manufacturer (cũng là Char). Khi xác nhận phiếu có thể
-    # propagate xuống stock.lot tương ứng (TODO).
+    # Brand / Manufacturer Serial Number — Char snapshot.
+    # Assembly: onchange `_onchange_lot_name` copy từ lot_id khi resolve.
+    # Identify: user nhập tay (lot chưa tồn tại tại thời điểm tạo line).
     # ------------------------------------------------------------------
     brand_part_id = fields.Char(
         string='Brd. S/N',
-        help='Số sê-ri do nhãn hiệu hoặc nhà cung cấp phân bổ.',
+        help='Số sê-ri do nhãn hiệu hoặc nhà cung cấp phân bổ. '
+             'Snapshot từ stock.lot khi assembly; user nhập tay khi identify.',
     )
     manufacturer_part_id = fields.Char(
         string='Mnf. S/N',
-        help='Số sê-ri do nhà sản xuất phân bổ.',
+        help='Số sê-ri do nhà sản xuất phân bổ. Tương tự brand_part_id.',
     )
 
     # ------------------------------------------------------------------
@@ -195,6 +194,8 @@ class ProductCreationLine(models.Model):
         self.lot_id = lot
         if not self.product_id and lot.product_id:
             self.product_id = lot.product_id
+        # Copy Brd/Mfr S/N từ lot làm snapshot — chỉ fill khi user chưa nhập
+        # tay (assembly path; identify giữ giá trị user gõ).
         if not self.brand_part_id and lot.brand_part_id:
             self.brand_part_id = lot.brand_part_id
         if not self.manufacturer_part_id and lot.manufacturer_part_id:
