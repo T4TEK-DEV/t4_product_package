@@ -28,7 +28,7 @@
                                     <field name="lot_id"/>
                                     <field name="qty"/>
                                     <field name="standard_price" string="Giá Vốn"
-                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager,t4_sti.group_purchase"/>
+                                           groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
                                     <field name="list_price" string="Giá Kho"
                                            groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                                 </list>
