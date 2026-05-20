@@ -1,6 +1,6 @@
 {
     'name': 'T4 Product Package',
-    'version': '1.0.4',
+    'version': '1.0.6',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,

@@ -384,7 +384,7 @@ Các action `Lắp Ráp` và `Định Danh LK TP` đều có context:
         'title': 'Quét',
         'icon': 'fa-rss',
         'position': 'status_bar',
-        'url': 'ws://localhost:9001',
+        'url': 'ws://127.0.0.1:9001',
         'toggle': False,
         'timeout': 2000,
     }],
