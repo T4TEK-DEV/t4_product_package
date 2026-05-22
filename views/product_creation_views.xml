@@ -403,6 +403,57 @@
     </record>
 
     <!-- ============================================================
+         FORM VIEW (LINE) — dùng khi user click vào dòng linh kiện
+         trong tab "Linh Kiện Đã Lắp" trên stock.quant form.
+         Read-only + chặn mở/tạo m2o (per t4_sti CLAUDE.md convention).
+         ============================================================ -->
+    <record id="view_t4_product_creation_line_form" model="ir.ui.view">
+        <field name="name">t4.product.creation.line.form</field>
+        <field name="model">t4.product.creation.line</field>
+        <field name="arch" type="xml">
+            <form string="Linh Kiện Đã Lắp" create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="creation_id" string="Phiếu"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                            <field name="product_id" string="Linh Kiện"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                            <field name="lot_id" string="Mã Quản Lý"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                            <field name="lot_name" invisible="not lot_name"/>
+                            <field name="quantity"/>
+                            <field name="product_uom_id" string="Đơn Vị"
+                                   options="{'no_open': 1, 'no_create': 1}"/>
+                        </group>
+                        <group>
+                            <field name="state" string="Loại Dòng"/>
+                            <field name="brand_part_id" invisible="not brand_part_id"/>
+                            <field name="manufacturer_part_id" invisible="not manufacturer_part_id"/>
+                            <field name="standard_price" widget="monetary"
+                                   options="{'currency_field': 'cost_currency_id'}"
+                                   groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                            <field name="list_price" widget="monetary"
+                                   options="{'currency_field': 'cost_currency_id'}"
+                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
+                            <field name="total_standard_price" widget="monetary"
+                                   options="{'currency_field': 'cost_currency_id'}"
+                                   groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                            <field name="total_list_price" widget="monetary"
+                                   options="{'currency_field': 'cost_currency_id'}"
+                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
+                            <field name="cost_currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Ghi Chú" invisible="not note">
+                        <field name="note" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================
          LIST VIEW (lịch sử)
          ============================================================ -->
     <record id="view_t4_product_creation_list" model="ir.ui.view">

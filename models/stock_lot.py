@@ -32,7 +32,7 @@ class StockLot(models.Model):
         'lot_id',
         'line_id',
         compute='_compute_fg_all_component_line_ids',
-        string='Linh Kiện Đã Lắp (Đệ Quy)',
+        string='Linh Kiện Đã Lắp',
         help='Như `fg_component_line_ids` nhưng đệ quy xuống mọi cấp sub-FG. '
              'Mỗi line giữ nguyên `creation_id` của phiếu lắp cấp đó nên group '
              'theo `creation_id` sẽ tách thành nhiều nhóm theo từng cấp. '
