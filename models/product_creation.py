@@ -859,7 +859,14 @@ class ProductCreation(models.Model):
             quants_to_apply.with_context(t4_creation_id=self.id)._apply_inventory()
 
         # Invalidate FG lot's fg_component_line_ids để form refresh.
-        self.lot_id.invalidate_recordset(['fg_component_line_ids'])
+        # Đồng thời invalidate biến thể đệ quy (UI tab "Linh Kiện Đã Lắp"
+        # của stock.quant dùng `fg_all_component_line_ids`). Chỉ invalidate
+        # cho lot hiện tại — nếu sub-FG được identify mới, parent FG sẽ
+        # cần re-open form để thấy update (chấp nhận được vì UI-only).
+        self.lot_id.invalidate_recordset([
+            'fg_component_line_ids',
+            'fg_all_component_line_ids',
+        ])
 
     def _sync_packing_request_qty_packed(self):
         """Cập nhật qty_packed trên packing.request.line theo line_ids."""

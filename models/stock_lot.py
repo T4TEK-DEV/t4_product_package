@@ -26,6 +26,20 @@ class StockLot(models.Model):
              'Lưu ý: KHÔNG net với dòng `returned` — dùng cho UI/báo cáo. '
              'Pool free dùng `_t4_get_committed_components()` để có net qty.',
     )
+    fg_all_component_line_ids = fields.Many2many(
+        't4.product.creation.line',
+        'stock_lot_fg_all_component_line_rel',
+        'lot_id',
+        'line_id',
+        compute='_compute_fg_all_component_line_ids',
+        string='Linh Kiện Đã Lắp (Đệ Quy)',
+        help='Như `fg_component_line_ids` nhưng đệ quy xuống mọi cấp sub-FG. '
+             'Mỗi line giữ nguyên `creation_id` của phiếu lắp cấp đó nên group '
+             'theo `creation_id` sẽ tách thành nhiều nhóm theo từng cấp. '
+             'UI-only — KHÔNG dùng cho business logic (locking, pool free, '
+             'BFS picking…); các logic đó phải dùng `fg_component_line_ids` '
+             'direct + `_t4_get_committed_components()`.',
+    )
 
     @api.depends()
     def _compute_fg_component_line_ids(self):
@@ -66,6 +80,90 @@ class StockLot(models.Model):
 
         for lot in self:
             lot.fg_component_line_ids = lot_map.get(lot.id, Line)
+
+    @api.depends()
+    def _compute_fg_all_component_line_ids(self):
+        """Đệ quy xuống mọi cấp sub-FG, gom tất cả dòng linh kiện đã `used`.
+
+        BFS theo level: mỗi vòng query batch `t4.product.creation` cho toàn
+        bộ frontier (lot_id IN frontier) thay vì N queries — depth × 1 query
+        thay vì depth × N queries.
+
+        Cycle guard: dùng `visited` set theo từng root lot. Một lot xuất hiện
+        ở 2 nhánh khác nhau của cùng root vẫn chỉ duyệt 1 lần — đủ vì dòng
+        line là cùng (line được thêm vào kết quả khi gặp lần đầu).
+
+        Caller sau khi xác nhận phiếu identify/assembly nên gọi:
+            `lot.invalidate_recordset(['fg_all_component_line_ids'])`
+        cùng với `fg_component_line_ids`.
+        """
+        Line = self.env['t4.product.creation.line']
+        if not any(self.ids):
+            self.fg_all_component_line_ids = False
+            return
+
+        # Pre-fetch field descriptor for `t4_tree_depth` so we can prime the
+        # ORM cache directly. Lý do: context `t4_fg_root_lot_id` ko propagate
+        # khi Odoo read m2m → compute `t4_tree_depth` không có root để tính.
+        # Workaround: tại đây ta đã biết root + depth_map → set thẳng vào cache
+        # cho từng line, adapter đọc field thấy giá trị ngay, bỏ qua compute.
+        depth_field = Line._fields.get('t4_tree_depth')
+        for lot in self:
+            if not lot.id:
+                lot.fg_all_component_line_ids = Line
+                continue
+            collected, depth_map = lot._t4_walk_fg_tree()
+            lot.fg_all_component_line_ids = collected
+            if depth_field is not None:
+                for line in collected:
+                    depth = depth_map.get(line.creation_id.id, 0)
+                    self.env.cache.set(line, depth_field, depth)
+
+    def _t4_walk_fg_tree(self):
+        """BFS đệ quy từ FG lot này, gom dòng linh kiện + map depth.
+
+        :returns: (collected_lines, depth_map) trong đó:
+            - `collected_lines`: recordset `t4.product.creation.line` mọi cấp.
+            - `depth_map`: dict `{creation_id: depth}` — depth của creation
+              = depth của FG mà creation đó tạo ra. Root lot có depth 0; các
+              creation tạo FG ở depth N thì tạo line cho components ở
+              "subtree" của FG đó, mà line.creation_id depth = N.
+
+              Ý nghĩa cho UI: depth của 1 LINE = depth(line.creation_id) — tức
+              là cấp của FG cha (FG mà line này là component). Group theo
+              `creation_id` → mọi line trong group cùng depth.
+
+        Cycle guard: visited set theo lot_id.
+        """
+        self.ensure_one()
+        Line = self.env['t4.product.creation.line']
+        if not self.id:
+            return Line, {}
+        Creation = self.env['t4.product.creation'].sudo()
+        collected = Line
+        depth_map = {}
+        visited = {self.id}
+        frontier = {self.id}
+        depth = 0
+        while frontier:
+            records = Creation.search([
+                ('lot_id', 'in', list(frontier)),
+                ('type', 'in', ['assembly', 'identify']),
+                ('state', '=', 'done'),
+            ])
+            next_frontier = set()
+            for rec in records:
+                depth_map[rec.id] = depth
+                used = rec.line_ids.filtered(lambda l: l.state == 'used')
+                collected |= used
+                for line in used:
+                    sub_lot_id = line.lot_id.id
+                    if sub_lot_id and sub_lot_id not in visited:
+                        visited.add(sub_lot_id)
+                        next_frontier.add(sub_lot_id)
+            frontier = next_frontier
+            depth += 1
+        return collected, depth_map
 
     # ------------------------------------------------------------------
     # Helper: net committed qty của 1 FG cho từng (product, lot) component
