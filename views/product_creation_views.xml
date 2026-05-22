@@ -421,25 +421,17 @@
                                    options="{'no_open': 1, 'no_create': 1}"/>
                             <field name="lot_id" string="Mã Quản Lý"
                                    options="{'no_open': 1, 'no_create': 1}"/>
-                            <field name="lot_name" invisible="not lot_name"/>
                             <field name="quantity"/>
                             <field name="product_uom_id" string="Đơn Vị"
                                    options="{'no_open': 1, 'no_create': 1}"/>
                         </group>
                         <group>
-                            <field name="state" string="Loại Dòng"/>
                             <field name="brand_part_id" invisible="not brand_part_id"/>
                             <field name="manufacturer_part_id" invisible="not manufacturer_part_id"/>
                             <field name="standard_price" widget="monetary"
                                    options="{'currency_field': 'cost_currency_id'}"
                                    groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
                             <field name="list_price" widget="monetary"
-                                   options="{'currency_field': 'cost_currency_id'}"
-                                   groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
-                            <field name="total_standard_price" widget="monetary"
-                                   options="{'currency_field': 'cost_currency_id'}"
-                                   groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
-                            <field name="total_list_price" widget="monetary"
                                    options="{'currency_field': 'cost_currency_id'}"
                                    groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                             <field name="cost_currency_id" invisible="1"/>
