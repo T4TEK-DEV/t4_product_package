@@ -40,6 +40,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">t4_product_package.report_t4_product_creation_assembly_template</field>
         <field name="report_file">t4_product_package.report_t4_product_creation_assembly_template</field>
+        <field name="print_report_name">(object.name or 'Phieu lap rap').replace('/', '-')</field>
         <field name="binding_model_id" ref="model_t4_product_creation"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="paperformat_t4_product_creation"/>
@@ -47,6 +48,8 @@
 
     <template id="report_t4_product_creation_assembly_template">
         <t t-call="web.html_container">
+            <!-- Title đặt làm filename mặc định khi browser "Save as PDF". -->
+            <t t-set="title" t-value="(docs[:1].name or 'Phieu lap rap').replace('/', '-')"/>
             <t t-call="web.external_layout">
                 <t t-foreach="docs" t-as="doc">
                     <div class="page">
@@ -205,6 +208,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">t4_product_package.report_t4_product_creation_identify_template</field>
         <field name="report_file">t4_product_package.report_t4_product_creation_identify_template</field>
+        <field name="print_report_name">(object.name or 'Phieu dinh danh LKTP').replace('/', '-')</field>
         <field name="binding_model_id" ref="model_t4_product_creation"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="paperformat_t4_product_creation"/>
@@ -212,6 +216,7 @@
 
     <template id="report_t4_product_creation_identify_template">
         <t t-call="web.html_container">
+            <t t-set="title" t-value="(docs[:1].name or 'Phieu dinh danh LKTP').replace('/', '-')"/>
             <t t-call="web.external_layout">
                 <t t-foreach="docs" t-as="doc">
                     <div class="page">
