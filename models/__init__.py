@@ -1,3 +1,4 @@
+from . import t4_error_helper          # AbstractModel — không phụ thuộc
 from . import product_component
 from . import product_creation_line   # comodel — phải import trước parent
 from . import product_creation

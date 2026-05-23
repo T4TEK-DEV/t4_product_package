@@ -22,9 +22,10 @@ class StockLot(models.Model):
         't4.product.creation.line',
         compute='_compute_fg_component_line_ids',
         string='Linh Kiện Đã Lắp',
-        help='Danh sách dòng linh kiện đã `used` của các phiếu done. '
-             'Lưu ý: KHÔNG net với dòng `returned` — dùng cho UI/báo cáo. '
-             'Pool free dùng `_t4_get_committed_components()` để có net qty.',
+        help='Danh sách dòng linh kiện hiện đang gắn trong FG (net qty). '
+             'Đã trừ các dòng `returned` của mọi phiếu done cùng FG theo '
+             'key (product, lot). Mục dùng cho UI/báo cáo — pool free / '
+             'locking vẫn dùng `_t4_get_committed_components()`.',
     )
     fg_all_component_line_ids = fields.Many2many(
         't4.product.creation.line',
@@ -43,19 +44,24 @@ class StockLot(models.Model):
 
     @api.depends()
     def _compute_fg_component_line_ids(self):
-        """Tổng hợp linh kiện đã lắp/định danh cho FG này (UI-only).
+        """Tổng hợp linh kiện hiện đang gắn trong FG (net used − returned).
 
-        Bao gồm cả:
+        Bao gồm:
             - type='assembly' done (lần đầu lắp ráp tạo FG)
             - type='identify' done (lần định danh thêm linh kiện cho FG có sẵn)
+
+        Logic net: với mỗi key (product_id, lot_id_or_0), tổng hợp returned
+        từ MỌI phiếu done cùng FG → trừ vào used. Used line bị cancel khi
+        returned_remaining ≥ used.quantity (consume 1:1 cho serial).
 
         Pattern batch: 1 search duy nhất cho toàn bộ recordset thay vì N
         queries trong vòng lặp — quan trọng khi field được đọc cho nhiều
         lot cùng lúc (vd. related trên stock.quant list).
 
-        Caller sau khi xác nhận phiếu identify nên gọi:
+        Caller sau khi xác nhận/trả/hủy phiếu nên gọi:
             `lot.invalidate_recordset(['fg_component_line_ids'])`
-        để form đang mở refresh ngay (xem `_t4_create_component_lots`).
+        để form đang mở refresh ngay (xem `_t4_create_component_lots` và
+        `action_confirm`).
         """
         lot_ids = [lid for lid in self.ids if lid]
         if not lot_ids:
@@ -68,18 +74,87 @@ class StockLot(models.Model):
             ('state', '=', 'done'),
         ])
 
-        # Group lines by FG lot_id — 1 pass qua records
+        # Group lines by FG lot_id — net used vs returned per (product, lot)
         Line = self.env['t4.product.creation.line']
         lot_map = {}
-        for rec in records:
-            used = rec.line_ids.filtered(lambda l: l.state == 'used')
-            lid = rec.lot_id.id
-            if lid not in lot_map:
+        for lid in lot_ids:
+            recs = records.filtered(lambda r: r.lot_id.id == lid)
+            if not recs:
                 lot_map[lid] = Line
-            lot_map[lid] |= used
+                continue
+            lot_map[lid] = self._t4_net_used_vs_returned(recs)
 
         for lot in self:
             lot.fg_component_line_ids = lot_map.get(lot.id, Line)
+
+    @api.model
+    def _t4_net_used_vs_returned(self, creation_records):
+        """Filter used lines: trừ returned + dedupe theo (product, lot_id).
+
+        :param creation_records: recordset t4.product.creation (mọi phiếu
+            done của cùng 1 FG lot).
+        :returns: recordset t4.product.creation.line — used lines còn lại
+            sau khi (1) trừ returned theo key, (2) dedupe — mỗi lot chỉ
+            xuất hiện 1 lần trên dòng phiếu mới nhất.
+
+        Pass 1 — Net used vs returned per key (product_id, lot_id_or_0):
+          - Cộng dồn returned_qty.
+          - Duyệt used theo (create_date, id) tăng dần — line cũ bị cancel
+            trước. Tracking='serial': mỗi line qty=1, exact 1:1 cancel.
+            Tracking='lot'/'none': cancel theo bucket qty từ used cũ nhất.
+
+        Pass 2 — Dedupe theo (product, lot_id) khi lot_id > 0:
+          - Cùng 1 lot vật lý không thể "used" trong nhiều phiếu cùng lúc.
+            Khi data có duplicate (vd: identify lại sau quy trình bất
+            thường), chỉ giữ line ở phiếu mới nhất (create_date max).
+          - lot_id = 0 (tracking='none'): KHÔNG dedupe — mỗi lần thêm là
+            1 sự kiện riêng, hợp lệ xuất hiện nhiều line.
+
+        Approximation Pass 1: nếu used.qty > returned_remaining > 0
+        (partial trả trên lot/none), line vẫn giữ qty gốc.
+        """
+        Line = self.env['t4.product.creation.line']
+
+        # Aggregate returned across all phiếu
+        returned_remaining = defaultdict(float)
+        for rec in creation_records:
+            for r_line in rec.line_returned_ids:
+                if not r_line.product_id or not r_line.quantity:
+                    continue
+                key = (r_line.product_id.id, r_line.lot_id.id or 0)
+                returned_remaining[key] += r_line.quantity
+
+        # Pass 1 — Cancel used by returned (cũ trước).
+        all_used = creation_records.line_ids.sorted(
+            key=lambda l: (l.create_date or l.id, l.id)
+        )
+        kept_pass1 = Line
+        for u in all_used:
+            if not u.product_id or not u.quantity:
+                continue
+            key = (u.product_id.id, u.lot_id.id or 0)
+            if returned_remaining[key] >= u.quantity:
+                returned_remaining[key] -= u.quantity
+                continue
+            kept_pass1 |= u
+            returned_remaining[key] = 0
+
+        # Pass 2 — Dedupe theo (product, lot_id) khi lot_id > 0: keep latest.
+        # Duyệt theo create_date DESC → line gặp đầu tiên (mới nhất) keep,
+        # các line sau cùng key bị skip.
+        seen_keys = set()
+        kept = Line
+        for u in kept_pass1.sorted(
+            key=lambda l: (l.create_date or l.id, l.id), reverse=True,
+        ):
+            lot_id = u.lot_id.id or 0
+            if lot_id:
+                key = (u.product_id.id, lot_id)
+                if key in seen_keys:
+                    continue  # đã có line mới hơn cùng lot → skip
+                seen_keys.add(key)
+            kept |= u
+        return kept
 
     @api.depends()
     def _compute_fg_all_component_line_ids(self):
@@ -167,9 +242,25 @@ class StockLot(models.Model):
             ])
             next_frontier = set()
             next_frontier_source = {}
+            # Net used vs returned per FG lot (gom mọi phiếu của cùng lot trước
+            # khi cancel) — đảm bảo returned ở phiếu B cancel used ở phiếu A
+            # khi cùng FG. Group records by lot_id (frontier) → recs_of_lot.
+            recs_by_lot = defaultdict(lambda: Creation)
+            for rec in records:
+                recs_by_lot[rec.lot_id.id] |= rec
+            netted_lines_by_creation = {}  # {creation_id: recordset kept lines}
+            for lot_id_in_frontier, recs in recs_by_lot.items():
+                kept_for_lot = self._t4_net_used_vs_returned(recs)
+                # Split kept lines back to per-creation dict
+                for rec in recs:
+                    kept_in_rec = kept_for_lot.filtered(
+                        lambda l: l.creation_id.id == rec.id
+                    )
+                    netted_lines_by_creation[rec.id] = kept_in_rec
+
             for rec in records:
                 depth_map[rec.id] = depth
-                used = rec.line_ids.filtered(lambda l: l.state == 'used')
+                used = netted_lines_by_creation.get(rec.id, Line)
                 used_sorted = used.sorted(key=lambda l: (l.sequence, l.id))
                 collected |= used
                 creation_lines[rec.id] = list(used_sorted)
