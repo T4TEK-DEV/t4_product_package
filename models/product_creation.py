@@ -251,7 +251,7 @@ class ProductCreation(models.Model):
         currency_field='cost_currency_id',
         compute='_compute_purchase_price',
         store=False,
-        help='Giá vốn (standard_price) của thành phẩm tại thời điểm hiển thị.',
+        help='Giá mua (standard_price) của thành phẩm tại thời điểm hiển thị.',
     )
 
     @api.depends('company_id')
@@ -461,14 +461,19 @@ class ProductCreation(models.Model):
                     limit=1,
                 )
                 if dup:
-                    raise UserError(_(
-                        'S/N Nhãn Hiệu "%(sn)s" của linh kiện "%(prod)s" '
-                        'đã tồn tại trong hệ thống (Lot: %(lot)s). '
-                        'Không thể định danh trùng.',
-                        sn=line.brand_part_id,
-                        prod=line.product_id.display_name,
-                        lot=dup.name,
-                    ))
+                    self.env['t4.error.helper']._raise_duplicate(
+                        message=_(
+                            'S/N Nhãn Hiệu "%(sn)s" của linh kiện "%(prod)s" '
+                            'đã tồn tại trong hệ thống (Lot: %(lot)s). '
+                            'Không thể định danh trùng.',
+                            sn=line.brand_part_id,
+                            prod=line.product_id.display_name,
+                            lot=dup.name,
+                        ),
+                        model='stock.lot',
+                        res_id=dup.id,
+                        button_label=_('Mở lot/serial bị trùng'),
+                    )
 
             if line.manufacturer_part_id:
                 key = (pid, line.manufacturer_part_id)
@@ -485,14 +490,19 @@ class ProductCreation(models.Model):
                     limit=1,
                 )
                 if dup:
-                    raise UserError(_(
-                        'S/N Nhà Sản Xuất "%(sn)s" của linh kiện "%(prod)s" '
-                        'đã tồn tại trong hệ thống (Lot: %(lot)s). '
-                        'Không thể định danh trùng.',
-                        sn=line.manufacturer_part_id,
-                        prod=line.product_id.display_name,
-                        lot=dup.name,
-                    ))
+                    self.env['t4.error.helper']._raise_duplicate(
+                        message=_(
+                            'S/N Nhà Sản Xuất "%(sn)s" của linh kiện "%(prod)s" '
+                            'đã tồn tại trong hệ thống (Lot: %(lot)s). '
+                            'Không thể định danh trùng.',
+                            sn=line.manufacturer_part_id,
+                            prod=line.product_id.display_name,
+                            lot=dup.name,
+                        ),
+                        model='stock.lot',
+                        res_id=dup.id,
+                        button_label=_('Mở lot/serial bị trùng'),
+                    )
 
         self.state = 'waiting'
         self.message_post(body=_(
@@ -569,6 +579,16 @@ class ProductCreation(models.Model):
                 rec._sync_packing_request_qty_packed()
 
             rec.state = 'done'
+
+            # Invalidate FG lot's cache để UI "Linh Kiện Đã Lắp" net lại
+            # ngay sau khi confirm (returned line đã có trong line_returned_ids
+            # → recompute sẽ trừ used tương ứng). Mirror identify flow ở
+            # `_t4_create_component_lots`.
+            if rec.lot_id:
+                rec.lot_id.invalidate_recordset([
+                    'fg_component_line_ids',
+                    'fg_all_component_line_ids',
+                ])
 
     def _t4_check_returned_consistency(self):
         """Validate net qty (committed + used − returned) ≥ 0 per (product, lot).
@@ -827,22 +847,55 @@ class ProductCreation(models.Model):
         # Batch-write standard_price TRƯỚC khi tạo quant + apply
         # inventory: svl đọc lot/product.standard_price khi move
         # _action_done → giá phải có sẵn.
+        #
+        # CRITICAL: cho AVCO/FIFO products (cost_method != 'standard'),
+        # KHÔNG ghi đè product.standard_price. Việc ghi sẽ trigger
+        # `_change_standard_price` của stock_account → tạo "Price update"
+        # SVL blast AVCO avg về giá user nhập, phá lịch sử pool. Odoo
+        # tự recompute avg từ pool sau mỗi incoming move. User's
+        # line.standard_price chỉ informational trên line (không inject
+        # vào pool valuation). Standard-Manual products dùng user cost
+        # làm standard_price cố định — vẫn ghi như cũ.
         for cost, lots in cost_to_lots.items():
             lots.standard_price = cost
         for cost, products in cost_to_products.items():
-            products.standard_price = cost
+            standard_products = products.filtered(
+                lambda p: p.cost_method == 'standard'
+            )
+            if standard_products:
+                standard_products.standard_price = cost
 
         # ----------------------------------------------------------
         # Pass 2: tạo quant với inventory_quantity → _apply_inventory.
         # Tracking='none' tạo quant không lot_id (Odoo cho phép); svl
         # sẽ dùng product.standard_price đã set ở Pass 1.
+        #
+        # CRITICAL: `inventory_quantity` là TARGET ABSOLUTE qty — Odoo
+        # tính delta = inventory_quantity − current_qty rồi tạo move.
+        # Nếu quant đã tồn tại (vd: tracking='none' merge theo product+
+        # location, hoặc lot tái sử dụng) và current_qty=100, set
+        # inventory_quantity=3 → delta=-97 → stock giảm 97 thay vì +3.
+        # → Phải tính target = (current_qty + line.quantity).
         # ----------------------------------------------------------
         quants_to_apply = Quant
         for line, new_lot in line_lot_pairs:
+            # Tìm quant tồn tại (merge target của Odoo) để compute target
+            # qty đúng. Match: cùng product + location + lot (hoặc no-lot).
+            existing_domain = [
+                ('product_id', '=', line.product_id.id),
+                ('location_id', '=', fg_location.id),
+            ]
+            if new_lot:
+                existing_domain.append(('lot_id', '=', new_lot.id))
+            else:
+                existing_domain.append(('lot_id', '=', False))
+            existing = Quant.search(existing_domain, limit=1)
+            target_qty = (existing.quantity if existing else 0.0) + line.quantity
+
             quant_vals = {
                 'product_id': line.product_id.id,
                 'location_id': fg_location.id,
-                'inventory_quantity': line.quantity,
+                'inventory_quantity': target_qty,
                 'inventory_quantity_set': True,
             }
             if new_lot:

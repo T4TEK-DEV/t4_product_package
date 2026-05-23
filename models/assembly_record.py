@@ -64,7 +64,7 @@ class AssemblyRecord(models.Model):
         string='Chi Tiết Linh Kiện',
     )
     total_standard_price = fields.Float(
-        string='Tổng Giá Vốn',
+        string='Tổng Giá Mua',
         compute='_compute_totals',
         store=True,
     )

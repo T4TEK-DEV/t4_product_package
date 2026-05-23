@@ -139,9 +139,9 @@ done (kết thúc — không cancel)
 
 | Field | Mô tả |
 |-------|-------|
-| `total_standard_price` | Tổng giá vốn (sum `line_ids.total_standard_price`) |
+| `total_standard_price` | Tổng giá mua (sum `line_ids.total_standard_price`) |
 | `total_list_price` | Tổng giá kho (sum `line_ids.total_list_price`) |
-| `purchase_price` | Giá vốn hiện tại của thành phẩm (`product_id.standard_price`) |
+| `purchase_price` | Giá mua hiện tại của thành phẩm (`product_id.standard_price`) |
 
 ### 2.3 Phân quyền nút & trường
 
@@ -252,7 +252,7 @@ quants._apply_inventory()
 | `quantity` | Float | Số lượng |
 | `brand_part_id` | Char | Brd. S/N snapshot |
 | `manufacturer_part_id` | Char | Mfr. S/N snapshot |
-| `standard_price` | Float | Giá vốn tại thời điểm định danh (snapshot) |
+| `standard_price` | Float | Giá mua tại thời điểm định danh (snapshot) |
 | `list_price` | Float | Giá kho tại thời điểm lắp ráp (snapshot) |
 | `total_standard_price` | Monetary (computed) | `quantity × standard_price` |
 | `total_list_price` | Monetary (computed) | `quantity × list_price` |

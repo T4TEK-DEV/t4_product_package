@@ -80,24 +80,49 @@ class ProductCreationLine(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Snapshot price (giá vốn / giá kho tại thời điểm tạo phiếu)
+    # Price — auto-computed từ product/lot (stored cho perf)
     # ------------------------------------------------------------------
+    # standard_price: lot-valuated (SN AVCO) → lot.standard_price (per-lot),
+    # else product.standard_price. list_price: product.lst_price (template).
+    # Stored để summary `total_standard_price` recompute đúng + tránh N+1
+    # query khi list nhiều dòng. Tự cập nhật khi product/lot đổi giá.
     standard_price = fields.Float(
-        string='Giá Vốn',
+        string='Giá Mua',
         digits='Product Price',
-        help='Lưu trữ giá vốn của linh kiện tại thời điểm tạo phiếu.',
+        compute='_compute_standard_price',
+        store=True,
+        readonly=True,
+        help='Giá mua linh kiện. Lot-valuated: per-lot từ stock.lot. '
+             'Còn lại: từ product.standard_price.',
     )
     list_price = fields.Float(
+        related='product_id.lst_price',
+        store=True,
         string='Giá Kho',
         digits='Product Price',
-        help='Lưu trữ giá kho của linh kiện tại thời điểm tạo phiếu.',
+        readonly=True,
+        help='Giá kho (sale price) — related từ product.lst_price.',
     )
+
+    @api.depends('product_id', 'product_id.standard_price',
+                 'product_id.lot_valuated',
+                 'lot_id', 'lot_id.standard_price')
+    def _compute_standard_price(self):
+        for line in self:
+            product = line.product_id
+            if not product:
+                line.standard_price = 0.0
+                continue
+            if product.lot_valuated and line.lot_id and line.lot_id.standard_price:
+                line.standard_price = line.lot_id.standard_price
+            else:
+                line.standard_price = product.standard_price or 0.0
     cost_currency_id = fields.Many2one(
         related='creation_id.cost_currency_id',
         readonly=True,
     )
     total_standard_price = fields.Monetary(
-        string='Tổng Giá Vốn',
+        string='Tổng Giá Mua',
         currency_field='cost_currency_id',
         compute='_compute_totals',
         store=True,
@@ -200,6 +225,8 @@ class ProductCreationLine(models.Model):
             self.brand_part_id = lot.brand_part_id
         if not self.manufacturer_part_id and lot.manufacturer_part_id:
             self.manufacturer_part_id = lot.manufacturer_part_id
+        # standard_price / list_price tự compute từ product/lot — không cần
+        # snapshot ở đây (xem `_compute_standard_price` + related list_price).
 
     @api.onchange('lot_id')
     def _onchange_lot_id_sync_name(self):
