@@ -219,20 +219,28 @@ class ProductCreationLine(models.Model):
         self.lot_id = lot
         if not self.product_id and lot.product_id:
             self.product_id = lot.product_id
-        # Copy Brd/Mfr S/N từ lot làm snapshot — chỉ fill khi user chưa nhập
-        # tay (assembly path; identify giữ giá trị user gõ).
-        if not self.brand_part_id and lot.brand_part_id:
-            self.brand_part_id = lot.brand_part_id
-        if not self.manufacturer_part_id and lot.manufacturer_part_id:
-            self.manufacturer_part_id = lot.manufacturer_part_id
+        # Assembly: LK đã định danh trước → lot là source of truth.
+        # Luôn overwrite Brd/Mfr S/N từ lot (kể cả khi line đã có giá trị
+        # cũ từ lot trước đó hoặc user gõ tay) để snapshot luôn khớp lot
+        # hiện hành.
+        self.brand_part_id = lot.brand_part_id or False
+        self.manufacturer_part_id = lot.manufacturer_part_id or False
         # standard_price / list_price tự compute từ product/lot — không cần
         # snapshot ở đây (xem `_compute_standard_price` + related list_price).
 
     @api.onchange('lot_id')
     def _onchange_lot_id_sync_name(self):
-        """Sync lot_id → lot_name khi lot được set qua dropdown ẩn / RPC."""
+        """Sync lot_id → lot_name + Brd/Mfr S/N khi lot set qua dropdown/RPC.
+
+        Assembly: lot là source of truth → snapshot S/N từ lot (cùng nguyên
+        tắc với `_onchange_lot_name`).
+        Identify: skip — lot mới chưa tồn tại, user nhập S/N tay.
+        """
         if self.lot_id and self.lot_id.name != self.lot_name:
             self.lot_name = self.lot_id.name
+        if self.lot_id and self.wizard_type == 'assembly':
+            self.brand_part_id = self.lot_id.brand_part_id or False
+            self.manufacturer_part_id = self.lot_id.manufacturer_part_id or False
 
     # ------------------------------------------------------------------
     # Server-side guards — chốt chặn cho luồng định danh
