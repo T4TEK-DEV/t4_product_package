@@ -224,18 +224,15 @@ class ProductCreationLine(models.Model):
             self.lot_name = False
             if other and self.product_id:
                 msg = _(
-                    'Mã "%(tag)s" tồn tại nhưng thuộc sản phẩm '
-                    '"%(prod)s", không khớp linh kiện "%(expected)s" '
-                    'đang chọn.',
+                    'Mã "%(tag)s" thuộc sản phẩm "%(prod)s", không '
+                    'khớp với "%(expected)s".',
                     tag=name,
                     prod=other.product_id.display_name,
                     expected=self.product_id.display_name,
                 )
             else:
                 msg = _(
-                    'Mã "%(tag)s" chưa được định danh trong hệ thống. '
-                    'Phiếu Lắp Ráp chỉ chấp nhận linh kiện đã định danh '
-                    '— hãy tạo Phiếu Định Danh LK TP trước.',
+                    'Mã "%(tag)s" chưa được định danh.',
                     tag=name,
                 )
             return {
@@ -353,6 +350,48 @@ class ProductCreationLine(models.Model):
                 fg=fg_label,
                 tab=tab,
             ))
+
+    @api.constrains('lot_name', 'lot_id', 'state', 'creation_id', 'product_id')
+    def _check_assembly_lot_name_must_exist(self):
+        """Phiếu Lắp Ráp: lot_name của linh kiện sử dụng PHẢI đã định
+        danh trong hệ thống (resolve được tới stock.lot).
+
+        Định danh có thể đến từ nhập kho NCC HOẶC phiếu Định Danh LK TP —
+        đều OK miễn `stock.lot` đã tồn tại. Constraint không prescribe
+        workflow cụ thể, chỉ enforce điều kiện cuối.
+
+        Backup cho onchange `_onchange_lot_name` (warning có thể bị bypass
+        qua RPC/import/paste batch). Áp dụng cho:
+            - type='assembly' (identify có rule riêng: lot_name CHƯA tồn tại)
+            - state='used' (returned không cần resolve)
+            - product có tracking != 'none' (qty-tracked không cần lot)
+            - lot_name có giá trị
+        """
+        for line in self:
+            if (line.creation_id.type != 'assembly'
+                    or line.state != 'used'
+                    or not line.lot_name
+                    or not line.product_id
+                    or line.product_id.tracking == 'none'):
+                continue
+            name = line.lot_name.strip()
+            lot = line.lot_id
+            if not lot or lot.name != name or lot.product_id != line.product_id:
+                other = self.env['stock.lot'].sudo().search(
+                    [('name', '=', name)], limit=1,
+                )
+                if other and other.product_id != line.product_id:
+                    raise ValidationError(_(
+                        'Mã "%(tag)s" thuộc sản phẩm "%(prod)s", không '
+                        'khớp với "%(expected)s".',
+                        tag=name,
+                        prod=other.product_id.display_name,
+                        expected=line.product_id.display_name,
+                    ))
+                raise ValidationError(_(
+                    'Mã "%(tag)s" chưa được định danh.',
+                    tag=name,
+                ))
 
     @api.constrains('lot_id', 'state', 'creation_id', 'product_id')
     def _check_lot_not_committed_to_other_fg(self):
