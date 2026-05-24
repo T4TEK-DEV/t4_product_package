@@ -41,6 +41,16 @@ class StockLot(models.Model):
              'BFS picking…); các logic đó phải dùng `fg_component_line_ids` '
              'direct + `_t4_get_committed_components()`.',
     )
+    fg_component_summary_ids = fields.Many2many(
+        't4.product.creation.summary',
+        compute='_compute_fg_component_summary_ids',
+        string='Cấu Thành',
+        help='Aggregate của `fg_all_component_line_ids` theo product. '
+             'Gom các dòng cùng product_id thành 1 dòng với '
+             'SUM(quantity). View "Cấu Thành" group theo categ_tech_id '
+             'của product. UI-only — đọc từ SQL view '
+             '`t4.product.creation.summary`.',
+    )
 
     @api.depends()
     def _compute_fg_component_line_ids(self):
@@ -199,6 +209,49 @@ class StockLot(models.Model):
                     self.env.cache.set(
                         line, sort_field, sort_paths.get(line.id, '')
                     )
+
+    @api.depends('fg_all_component_line_ids')
+    def _compute_fg_component_summary_ids(self):
+        """Gom `fg_all_component_line_ids` theo product → records summary.
+
+        Aggregation thực hiện ở Python (không SQL view) vì M2M cha
+        `fg_all_component_line_ids` là computed-only — Odoo không tạo
+        rel table physical. Mỗi lần compute:
+          1. Xoá summary cũ của lot (TransientModel records).
+          2. Iterate fg_all_component_line_ids, group theo product_id,
+             tích luỹ SUM(quantity).
+          3. Batch-create records mới.
+
+        Auto-vacuum của TransientModel sẽ dọn records không còn trỏ tới
+        lot nào sau ~4h (theo `_transient_max_hours`).
+        """
+        Summary = self.env['t4.product.creation.summary'].sudo()
+        for lot in self:
+            if not lot.id:
+                lot.fg_component_summary_ids = Summary
+                continue
+            # Xoá summary cũ — tránh duplicate khi recompute.
+            Summary.search([('lot_id', '=', lot.id)]).unlink()
+            # Aggregate theo product.
+            agg = {}
+            for line in lot.fg_all_component_line_ids:
+                pid = line.product_id.id
+                if not pid:
+                    continue
+                if pid not in agg:
+                    agg[pid] = {
+                        'lot_id': lot.id,
+                        'product_id': pid,
+                        'product_uom_id': line.product_uom_id.id or False,
+                        'quantity': 0.0,
+                    }
+                agg[pid]['quantity'] += line.quantity or 0.0
+            if agg:
+                lot.fg_component_summary_ids = Summary.create(
+                    list(agg.values())
+                )
+            else:
+                lot.fg_component_summary_ids = Summary
 
     def _t4_walk_fg_tree(self):
         """BFS đệ quy từ FG lot này, gom dòng linh kiện + map depth + sort path.
