@@ -116,11 +116,11 @@
                             <field name="purchase_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                   groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                             <field name="total_standard_price"
                                    widget="monetary"
                                    readonly="1"
-                                   groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                   groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                         </group>
                     </group>
 
@@ -196,18 +196,19 @@
                                        required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
                                        data-auto-input-order="3"
                                        readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
-                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác -->
+                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
+                                     Kế toán thấy nhưng chỉ đọc (can_edit_standard_price=False). -->
                                 <field name="standard_price"
                                        string="Đơn Giá Mua"
                                        widget="monetary"
-                                       readonly="parent_state != 'waiting' or not product_id" force_save="1"
-                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                       readonly="parent_state != 'waiting' or not product_id or not context.get('can_edit_standard_price')" force_save="1"
+                                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                 <field name="total_standard_price"
                                        string="Thành Tiền"
                                        widget="monetary"
                                        sum="Tổng Thành Tiền"
-                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                             </list>
                         </field>
                         <!-- Bảng cho các state khác draft: KHÔNG được thêm/xóa dòng -->
@@ -256,18 +257,19 @@
                                        required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
                                        data-auto-input-order="3"
                                        readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
-                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác -->
+                                <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
+                                     Kế toán thấy nhưng chỉ đọc (can_edit_standard_price=False). -->
                                 <field name="standard_price"
                                        string="Đơn Giá Mua"
                                        widget="monetary"
-                                       readonly="parent_state != 'waiting' or not product_id" force_save="1"
-                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                       readonly="parent_state != 'waiting' or not product_id or not context.get('can_edit_standard_price')" force_save="1"
+                                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                                 <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                 <field name="total_standard_price"
                                        string="Thành Tiền"
                                        widget="monetary"
                                        sum="Tổng Thành Tiền"
-                                       groups="t4_sti.group_purchase,t4_sti.group_manager"/>
+                                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager"/>
                             </list>
                         </field>
                     </group>
