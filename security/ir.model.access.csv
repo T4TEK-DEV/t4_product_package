@@ -1,11 +1,11 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_packing_request,packing.request,model_packing_request,base.group_user,1,1,1,0
+access_packing_request,packing.request,model_packing_request,base.group_user,1,1,1,1
 access_packing_request_line,packing.request.line,model_packing_request_line,base.group_user,1,1,1,1
-access_product_component_user,t4.product.component,model_t4_product_component,base.group_user,1,1,1,0
+access_product_component_user,t4.product.component,model_t4_product_component,base.group_user,1,1,1,1
 access_product_component_admin,t4.product.component,model_t4_product_component,base.group_system,1,1,1,1
-access_product_creation_user,t4.product.creation,model_t4_product_creation,base.group_user,1,1,1,0
+access_product_creation_user,t4.product.creation,model_t4_product_creation,base.group_user,1,1,1,1
 access_product_creation_admin,t4.product.creation,model_t4_product_creation,base.group_system,1,1,1,1
-access_product_creation_line_user,t4.product.creation.line,model_t4_product_creation_line,base.group_user,1,1,1,0
+access_product_creation_line_user,t4.product.creation.line,model_t4_product_creation_line,base.group_user,1,1,1,1
 access_product_creation_line_admin,t4.product.creation.line,model_t4_product_creation_line,base.group_system,1,1,1,1
 access_product_creation_sign_wizard_user,t4.product.creation.sign.wizard,model_t4_product_creation_sign_wizard,base.group_user,1,1,1,1
 access_product_creation_summary_user,t4.product.creation.summary,model_t4_product_creation_summary,base.group_user,1,0,0,0

@@ -311,13 +311,13 @@
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                     </list>
                                 </field>
@@ -351,13 +351,13 @@
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none') or (tracking == 'serial' and lot_id)" force_save="1"/>
                                         <field name="is_scrap"
                                                string="Hư Hỏng"
                                                readonly="parent_state == 'done'" force_save="1"/>

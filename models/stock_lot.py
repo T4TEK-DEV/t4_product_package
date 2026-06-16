@@ -392,3 +392,39 @@ class StockLot(models.Model):
         # Loại key có qty <= 0 (đã trả hết hoặc trả vượt — vượt hiển thị
         # cảnh báo nghiệp vụ ở chỗ khác)
         return {k: q for k, q in net.items() if q > 0}
+
+    def _t4_committing_fg_lot(self):
+        """FG lot đang giữ `self` (lot linh kiện) với NET used − returned > 0.
+
+        Dùng cho các check "không được di chuyển linh kiện độc lập". Khác với
+        search thô `state='used'`: helper này NET qua mọi phiếu done (cả
+        assembly LẪN identify) của cùng FG — nên khi linh kiện đã được TRẢ
+        (tab "Linh Kiện Trả" / phiếu cùng FG) thì net = 0 → KHÔNG còn bị giữ,
+        dù dòng `used` gốc (kể cả của phiếu Định Danh LKTP, vốn không có luồng
+        trả riêng) vẫn tồn tại trong DB.
+
+        :returns: tuple (fg_lot, creation) của vi phạm đầu tiên còn net > 0;
+            (stock.lot rỗng, t4.product.creation rỗng) nếu linh kiện đã tự do.
+        """
+        self.ensure_one()
+        empty_lot = self.env['stock.lot']
+        empty_creation = self.env['t4.product.creation']
+        if not self.id or not self.product_id:
+            return empty_lot, empty_creation
+        Line = self.env['t4.product.creation.line'].sudo()
+        used_lines = Line.search([
+            ('lot_id', '=', self.id),
+            ('state', '=', 'used'),
+            ('creation_id.type', 'in', ['assembly', 'identify']),
+            ('creation_id.state', '=', 'done'),
+        ])
+        key = (self.product_id.id, self.id)
+        seen_fg = set()
+        for creation in used_lines.mapped('creation_id'):
+            fg_lot = creation.lot_id
+            if not fg_lot or fg_lot.id in seen_fg:
+                continue
+            seen_fg.add(fg_lot.id)
+            if fg_lot._t4_get_committed_components().get(key, 0.0) > 0:
+                return fg_lot, creation
+        return empty_lot, empty_creation
