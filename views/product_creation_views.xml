@@ -172,30 +172,30 @@
                                 <field name="product_id"
                                        string="Sản Phẩm"
                                        required="1"
-                                       readonly="parent_state != 'draft'" force_save="1"
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or lot_id" force_save="1"
                                        options="{'no_open': 1, 'no_create': 1}"
                                        context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
-                                       readonly="parent_state != 'draft' or not product_id or tracking == 'serial'"
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking == 'serial'"
                                        force_save="1"/>
                                 <field name="lot_name"
                                        string="Mã Quản Lý"
                                        data-auto-input-order="1"
                                        required="tracking == 'serial'"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <field name="brand_part_id"
                                        string="Brd. S/N"
                                        column_invisible="not context.get('is_have_brand')"
                                        required="context.get('is_have_brand') and tracking == 'serial' and not manufacturer_part_id"
                                        data-auto-input-order="2"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <field name="manufacturer_part_id"
                                        string="Mnf. S/N"
                                        column_invisible="not context.get('is_have_manufacturer')"
                                        required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
                                        data-auto-input-order="3"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
                                      Kế toán thấy nhưng chỉ đọc (can_edit_standard_price=False). -->
                                 <field name="standard_price"
@@ -233,30 +233,30 @@
                                 <field name="product_id"
                                        string="Sản Phẩm"
                                        required="1"
-                                       readonly="parent_state != 'draft'" force_save="1"
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or lot_id" force_save="1"
                                        options="{'no_open': 1, 'no_create': 1}"
                                        context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                 <field name="quantity"
                                        string="Số Lượng"
-                                       readonly="parent_state != 'draft' or not product_id or tracking == 'serial'"
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking == 'serial'"
                                        force_save="1"/>
                                 <field name="lot_name"
                                        string="Mã Quản Lý"
                                        data-auto-input-order="1"
                                        required="tracking == 'serial'"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <field name="brand_part_id"
                                        string="Brd. S/N"
                                        column_invisible="not context.get('is_have_brand')"
                                        required="context.get('is_have_brand') and tracking == 'serial' and not manufacturer_part_id"
                                        data-auto-input-order="2"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <field name="manufacturer_part_id"
                                        string="Mnf. S/N"
                                        column_invisible="not context.get('is_have_manufacturer')"
                                        required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
                                        data-auto-input-order="3"
-                                       readonly="parent_state != 'draft' or not product_id or tracking != 'serial'" force_save="1"/>
+                                       readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking != 'serial'" force_save="1"/>
                                 <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
                                      Kế toán thấy nhưng chỉ đọc (can_edit_standard_price=False). -->
                                 <field name="standard_price"
