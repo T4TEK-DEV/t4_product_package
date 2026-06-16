@@ -302,22 +302,22 @@
                                         <field name="product_id"
                                                string="Sản Phẩm"
                                                required="1"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or lot_id" force_save="1"
                                                options="{'no_open': 1, 'no_create': 1}"
                                                context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
                                                string="Số Lượng"
-                                               readonly="parent_state == 'done' or tracking == 'serial'" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking == 'serial'" force_save="1"/>
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="create_date" string="Ngày Tạo" optional="hide"/>
                                     </list>
                                 </field>
@@ -342,22 +342,22 @@
                                         <field name="product_id"
                                                string="Sản Phẩm"
                                                required="1"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or lot_id" force_save="1"
                                                options="{'no_open': 1, 'no_create': 1}"
                                                context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                         <field name="quantity"
                                                string="Số Lượng"
-                                               readonly="parent_state == 'done' or tracking == 'serial'" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking == 'serial'" force_save="1"/>
                                         <field name="lot_name"
                                                string="Mã Quản Lý"
                                                data-auto-input-order="0"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="brand_part_id"
                                                string="Brd. S/N"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="manufacturer_part_id"
                                                string="Mnf. S/N"
-                                               readonly="parent_state == 'done' or tracking in ['serial', 'none']" force_save="1"/>
+                                               readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                         <field name="is_scrap"
                                                string="Hư Hỏng"
                                                readonly="parent_state == 'done'" force_save="1"/>
