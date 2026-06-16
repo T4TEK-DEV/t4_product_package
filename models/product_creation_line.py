@@ -121,14 +121,47 @@ class ProductCreationLine(models.Model):
             return self.lot_id.standard_price
         return product.standard_price or 0.0
 
+    def _t4_snapshot_brand_mfr(self):
+        """Backstop server-side: snapshot Brd/Mfr S/N từ lot cho dòng ASSEMBLY
+        'used' khi field còn TRỐNG.
+
+        Onchange `_onchange_lot_name`/`_onchange_lot_id_sync_name` chỉ chạy trên
+        FORM. Khi dòng được tạo/sửa qua SCAN ("Quét") / RPC / import / paste
+        (không qua onchange), Brd/Mfr S/N không được copy dù lot ĐÃ có giá trị →
+        2 cột trống. Backstop này bù lại (giống backstop standard_price ở create).
+        Fill-when-empty (không ghi đè giá trị đã nhập), chỉ assembly + used; lot
+        lấy từ lot_id, fallback tìm theo lot_name+product.
+        """
+        Lot = self.env['stock.lot']
+        for line in self:
+            if line.creation_id.type != 'assembly' or line.state != 'used':
+                continue
+            if line.brand_part_id and line.manufacturer_part_id:
+                continue
+            lot = line.lot_id
+            if not lot and line.lot_name and line.product_id:
+                lot = Lot.sudo().search(
+                    [('name', '=', line.lot_name.strip()),
+                     ('product_id', '=', line.product_id.id)], limit=1)
+            if not lot:
+                continue
+            patch = {}
+            if not line.brand_part_id and lot.brand_part_id:
+                patch['brand_part_id'] = lot.brand_part_id
+            if not line.manufacturer_part_id and lot.manufacturer_part_id:
+                patch['manufacturer_part_id'] = lot.manufacturer_part_id
+            if patch:
+                line.with_context(t4_skip_bm_snapshot=True).write(patch)
+
     @api.model_create_multi
     def create(self, vals_list):
-        """Prefill snapshot Giá Mua khi tạo dòng không kèm giá.
+        """Prefill snapshot Giá Mua + Brd/Mfr S/N khi tạo dòng không qua onchange.
 
         Trước đây standard_price là computed-stored nên luôn có giá lúc
         tạo. Giờ là field snapshot thường → bù prefill tại create để giữ
         hành vi cũ cho assembly và các đường tạo dòng không qua onchange
-        (RPC / import / seed).
+        (RPC / import / seed / SCAN). Brd/Mfr S/N cũng snapshot tại đây vì
+        cùng lý do (xem `_t4_snapshot_brand_mfr`).
         """
         lines = super().create(vals_list)
         for line, vals in zip(lines, vals_list):
@@ -136,7 +169,21 @@ class ProductCreationLine(models.Model):
                 snap = line._t4_snapshot_standard_price()
                 if snap:
                     line.standard_price = snap
+        lines.with_context(t4_skip_bm_snapshot=True)._t4_snapshot_brand_mfr()
         return lines
+
+    def write(self, vals):
+        """Backstop write: khi gắn/đổi lot (lot_id/lot_name) hoặc product qua
+        SCAN/RPC mà KHÔNG kèm Brd/Mfr S/N → snapshot lại từ lot. Guard
+        `t4_skip_bm_snapshot` chặn đệ quy (chính backstop tự ghi 2 field này).
+        """
+        res = super().write(vals)
+        if (not self.env.context.get('t4_skip_bm_snapshot')
+                and any(k in vals for k in ('lot_id', 'lot_name', 'product_id'))
+                and 'brand_part_id' not in vals
+                and 'manufacturer_part_id' not in vals):
+            self._t4_snapshot_brand_mfr()
+        return res
 
     @api.onchange('product_id', 'lot_id')
     def _onchange_prefill_standard_price(self):
