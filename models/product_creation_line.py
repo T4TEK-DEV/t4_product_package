@@ -348,7 +348,12 @@ class ProductCreationLine(models.Model):
         """
         if self.lot_id and self.lot_id.name != self.lot_name:
             self.lot_name = self.lot_id.name
-        if self.lot_id and self.wizard_type == 'assembly':
+        # Snapshot LIVE (không cần lưu) khi set lot qua dropdown/scan. Dùng
+        # `!= 'identify'` thay vì `== 'assembly'`: trên DÒNG MỚI chưa lưu,
+        # related `wizard_type` (= creation_id.type) có thể chưa kịp populate →
+        # `== 'assembly'` bị bỏ qua → S/N trống tới lúc lưu. Identify vẫn skip
+        # (user nhập tay, lot chưa tồn tại).
+        if self.lot_id and self.wizard_type != 'identify':
             self.brand_part_id = self.lot_id.brand_part_id or False
             self.manufacturer_part_id = self.lot_id.manufacturer_part_id or False
 
