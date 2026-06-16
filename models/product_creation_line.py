@@ -89,11 +89,12 @@ class ProductCreationLine(models.Model):
     standard_price = fields.Float(
         string='Giá Mua',
         digits='Product Price',
-        compute='_compute_standard_price',
-        store=True,
-        readonly=True,
-        help='Giá mua linh kiện. Lot-valuated: per-lot từ stock.lot. '
-             'Còn lại: từ product.standard_price.',
+        default=0.0,
+        help='Giá mua linh kiện — SNAPSHOT cố định tại thời điểm lắp ráp / '
+             'định danh. Tự prefill từ lot/product khi chọn linh kiện, sau '
+             'đó GIỮ NGUYÊN (không tự tính lại). Identify: Thu Mua nhập tay '
+             'ở trạng thái "Chờ Nhập Giá" — giá được giữ qua bước xác nhận, '
+             'không bị recompute về 0.',
     )
     list_price = fields.Float(
         related='product_id.lst_price',
@@ -104,19 +105,56 @@ class ProductCreationLine(models.Model):
         help='Giá kho (sale price) — related từ product.lst_price.',
     )
 
-    @api.depends('product_id', 'product_id.standard_price',
-                 'product_id.lot_valuated',
-                 'lot_id', 'lot_id.standard_price')
-    def _compute_standard_price(self):
+    def _t4_snapshot_standard_price(self):
+        """Giá mua tham chiếu từ lot/product dùng để prefill snapshot.
+
+        Lot-valuated (SN AVCO) → giá per-lot từ stock.lot; còn lại →
+        product.standard_price. KHÔNG phải compute field — chỉ là nguồn
+        giá gợi ý để điền sẵn, sau đó snapshot giữ nguyên (không tự tính
+        lại khi lot_id/product.standard_price đổi lúc xác nhận giá).
+        """
+        self.ensure_one()
+        product = self.product_id
+        if not product:
+            return 0.0
+        if product.lot_valuated and self.lot_id and self.lot_id.standard_price:
+            return self.lot_id.standard_price
+        return product.standard_price or 0.0
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Prefill snapshot Giá Mua khi tạo dòng không kèm giá.
+
+        Trước đây standard_price là computed-stored nên luôn có giá lúc
+        tạo. Giờ là field snapshot thường → bù prefill tại create để giữ
+        hành vi cũ cho assembly và các đường tạo dòng không qua onchange
+        (RPC / import / seed).
+        """
+        lines = super().create(vals_list)
+        for line, vals in zip(lines, vals_list):
+            if not vals.get('standard_price'):
+                snap = line._t4_snapshot_standard_price()
+                if snap:
+                    line.standard_price = snap
+        return lines
+
+    @api.onchange('product_id', 'lot_id')
+    def _onchange_prefill_standard_price(self):
+        """Prefill Giá Mua từ lot/product khi chọn linh kiện trên form.
+
+        - assembly: snapshot thuần → luôn cập nhật theo lot/product.
+        - identify: Thu Mua nhập tay → CHỈ prefill khi field còn trống,
+          KHÔNG ghi đè giá user đã nhập. Đây là điểm sửa gốc của bug
+          "nhập giá → xác nhận xong quay về 0": trước kia standard_price
+          là computed nên bị tự tính lại = 0 khi action_confirm_cost set
+          lot_id / product.standard_price.
+        """
         for line in self:
-            product = line.product_id
-            if not product:
-                line.standard_price = 0.0
+            if not line.product_id:
                 continue
-            if product.lot_valuated and line.lot_id and line.lot_id.standard_price:
-                line.standard_price = line.lot_id.standard_price
-            else:
-                line.standard_price = product.standard_price or 0.0
+            if line.wizard_type == 'identify' and line.standard_price:
+                continue
+            line.standard_price = line._t4_snapshot_standard_price()
     cost_currency_id = fields.Many2one(
         related='creation_id.cost_currency_id',
         readonly=True,
@@ -250,8 +288,8 @@ class ProductCreationLine(models.Model):
         # hiện hành.
         self.brand_part_id = lot.brand_part_id or False
         self.manufacturer_part_id = lot.manufacturer_part_id or False
-        # standard_price / list_price tự compute từ product/lot — không cần
-        # snapshot ở đây (xem `_compute_standard_price` + related list_price).
+        # standard_price prefill qua `_onchange_prefill_standard_price` +
+        # create(); list_price related từ product. Không snapshot ở đây.
 
     @api.onchange('lot_id')
     def _onchange_lot_id_sync_name(self):

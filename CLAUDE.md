@@ -133,8 +133,11 @@ File: `models/product_creation_line.py`
 - `lot_name` (Char) — onchange: assembly tìm lot có sẵn + fill Brd/Mfr; identify
   check lot chưa tồn tại (warning nếu đã có)
 - `quantity` (Float, default 1.0)
-- `standard_price` (Float, computed stored) — lot_valuated → `lot.standard_price`;
-  còn lại → `product.standard_price`
+- `standard_price` (Float, **snapshot thường** — KHÔNG compute) — prefill từ
+  lot/product qua `_onchange_prefill_standard_price` + `create()`; identify chỉ
+  prefill khi trống để GIỮ giá Thu Mua nhập tay. Trước v1.0.9 là computed-stored
+  → bị recompute về 0 khi `action_confirm_cost` set lot_id/product price (bug
+  "nhập giá → xác nhận xong quay về 0"). Helper: `_t4_snapshot_standard_price()`
 - `list_price` (Float, related stored từ `product.lst_price`)
 - `total_standard_price`, `total_list_price` (Monetary, computed stored)
 - `brand_part_id`, `manufacturer_part_id` (Char snapshot)
