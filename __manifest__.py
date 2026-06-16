@@ -1,6 +1,6 @@
 {
     'name': 'T4 Product Package',
-    'version': '1.0.11',
+    'version': '1.0.12',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
@@ -35,6 +35,12 @@
         'views/stock_picking_views.xml',
         'views/stock_move_line_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            # Toggle LIVE used↔returned khi quét lại serial (form lắp ráp).
+            't4_product_package/static/src/product_creation_toggle.js',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': True,
