@@ -20,7 +20,7 @@ class AssemblyRecordLine(models.Model):
     lot_id = fields.Many2one(
         'stock.lot',
         string='Mã Serial/Lot',
-        help='Serial/Lot của linh kiện sử dụng.',
+        help='Mã sê-ri hoặc số lô của linh kiện sử dụng.',
     )
     quantity = fields.Float(
         string='Số Lượng',
@@ -34,15 +34,15 @@ class AssemblyRecordLine(models.Model):
     )
     # --- Snapshot giá tại thời điểm lắp ráp ---
     standard_price = fields.Float(
-        string='Giá Vốn (Snapshot)',
-        help='Giá vốn linh kiện tại thời điểm lắp ráp.',
+        string='Giá Mua (Snapshot)',
+        help='Giá mua linh kiện tại thời điểm lắp ráp.',
     )
     list_price = fields.Float(
         string='Giá Kho (Snapshot)',
         help='Giá kho linh kiện tại thời điểm lắp ráp.',
     )
     total_standard_price = fields.Float(
-        string='Tổng Giá Vốn',
+        string='Tổng Giá Mua',
         compute='_compute_totals',
         store=True,
     )

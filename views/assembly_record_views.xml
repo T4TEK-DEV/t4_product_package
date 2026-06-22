@@ -40,10 +40,12 @@
                   decoration-muted="state == 'cancel'">
                 <field name="name"/>
                 <field name="date"/>
-                <field name="product_id"/>
+                <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                 <field name="lot_id"/>
-                <field name="total_standard_price" string="Tổng Giá Vốn"/>
-                <field name="total_list_price" string="Tổng Giá Kho"/>
+                <field name="total_standard_price" string="Tổng Giá Mua"
+                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                <field name="total_list_price" string="Tổng Giá Kho"
+                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                 <field name="packing_request_id" optional="hide"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'done'"
@@ -77,7 +79,7 @@
                     </div>
                     <group>
                         <group string="Thông Tin Thành Phẩm">
-                            <field name="product_id"/>
+                            <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                             <field name="lot_id"/>
                             <field name="date"/>
                         </group>
@@ -90,20 +92,26 @@
                         <page name="components" string="Chi Tiết Linh Kiện">
                             <field name="line_ids">
                                 <list editable="bottom">
-                                    <field name="product_id"/>
+                                    <field name="product_id" context="{'list_view_ref': 't4_sti.view_t4_product_product_list'}"/>
                                     <field name="lot_id"/>
                                     <field name="quantity"/>
                                     <field name="product_uom_id"/>
-                                    <field name="standard_price" string="Giá Vốn"/>
-                                    <field name="list_price" string="Giá Kho"/>
-                                    <field name="total_standard_price" string="Tổng GV" sum="Tổng"/>
-                                    <field name="total_list_price" string="Tổng GK" sum="Tổng"/>
+                                    <field name="standard_price" string="Giá Mua"
+                                           groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                                    <field name="list_price" string="Giá Kho"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
+                                    <field name="total_standard_price" string="Tổng GM" sum="Tổng"
+                                           groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                                    <field name="total_list_price" string="Tổng GK" sum="Tổng"
+                                           groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                                     <field name="note"/>
                                 </list>
                             </field>
                             <group class="oe_subtotal_footer oe_right">
-                                <field name="total_standard_price" string="Tổng Giá Vốn"/>
-                                <field name="total_list_price" string="Tổng Giá Kho"/>
+                                <field name="total_standard_price" string="Tổng Giá Mua"
+                                       groups="t4_sti.group_purchase,t4_sti.group_accounting,t4_sti.group_manager,base.group_system"/>
+                                <field name="total_list_price" string="Tổng Giá Kho"
+                                       groups="t4_sti.group_sales,t4_sti.group_accounting,t4_sti.group_manager"/>
                             </group>
                         </page>
                         <page name="notes" string="Ghi Chú">

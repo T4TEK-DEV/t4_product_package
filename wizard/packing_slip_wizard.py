@@ -12,8 +12,7 @@ class PackingSlipWizard(models.TransientModel):
         'product.product',
         string='Thành Phẩm',
         domain="[('tracking', '=', 'serial')]",
-        help='Sản phẩm thành phẩm (serial) sẽ được tạo ra từ linh kiện đã quét. '
-             'Mọi sản phẩm serial đều có thể đóng vai trò Thành Phẩm.',
+        help='Sản phẩm hoàn chỉnh sẽ được tạo ra từ các linh kiện đã quét. Bất kỳ sản phẩm nào được quản lý theo số sê-ri đều có thể được coi là sản phẩm hoàn chỉnh.',
     )
     barcode_input = fields.Char(string='Quét Mã Vạch')
     line_ids = fields.One2many('packing.slip.wizard.line', 'wizard_id', string='Linh Kiện Đã Quét')
@@ -29,12 +28,18 @@ class PackingSlipWizard(models.TransientModel):
             ('name', '=', barcode),
         ], limit=1)
         if lot:
+            # Lot-valuated (SN AVCO): giá per-lot. Còn lại: giá product.
+            product = lot.product_id
+            if product.lot_valuated and lot.standard_price:
+                cost = lot.standard_price
+            else:
+                cost = product.standard_price or 0.0
             self.line_ids = [(0, 0, {
-                'product_id': lot.product_id.id,
+                'product_id': product.id,
                 'lot_id': lot.id,
                 'qty': 1.0,
-                'standard_price': lot.product_id.standard_price,
-                'list_price': lot.product_id.lst_price,
+                'standard_price': cost,
+                'list_price': product.lst_price or 0.0,
             })]
             self.barcode_input = False
             return self._reopen()

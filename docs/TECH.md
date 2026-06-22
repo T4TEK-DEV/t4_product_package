@@ -1,10 +1,12 @@
-# t4_product_package — Technical Documentation
+# t4_product_package — Technical Notes
 
-## Key Models
-- Packing request wizard + lines
-- BOM-like structure for product packaging
+> Tài liệu tính năng đầy đủ: [FEATURES.md](./FEATURES.md)
 
 ## Migration Notes (v18 → v19)
-- `<tree>` → `<list>` in all views and view_mode
-- Wizard line split to separate file for proper model registration
-- Wizard views loaded BEFORE main views in manifest data order
+
+- `<tree>` → `<list>` trong tất cả view và `view_mode`
+- `wizard_line` tách ra file riêng để đăng ký model trước parent (Odoo 19 strict validation)
+- Wizard views load TRƯỚC main views trong `__manifest__.py data`
+- `move_ids_without_package` → `move_ids` (field bị xoá trong Odoo 19)
+- `stock.move.name` → `stock.move.reference` (field bị đổi tên)
+- `category_id` → `privilege_id` trên `res.groups` (Odoo 19 breaking change)
