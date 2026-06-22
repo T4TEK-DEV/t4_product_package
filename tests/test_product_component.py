@@ -11,25 +11,43 @@ class TestProductComponent(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Component = cls.env['t4.product.component']
+        # t4_sti yêu cầu technical_categ_id + default_code; tracking='none'
+        # phải dùng AVCO (không SN AVCO).
+        TechCateg = cls.env['product.category.technical']
+        tc_fg = TechCateg.create({'name': 'Component FG'})
+        tc_screen = TechCateg.create({'name': 'Component Screen'})
+        tc_kb = TechCateg.create({'name': 'Component Keyboard'})
+        tc_bat = TechCateg.create({'name': 'Component Battery'})
+        avco_categ = cls.env.ref(
+            't4_cost_tracking.product_category_account_avco')
         # Thành phẩm
         cls.fg_template = cls.env['product.template'].create({
             'name': 'Laptop Assembled',
+            'default_code': 'T4_COMP_FG',
+            'technical_categ_id': tc_fg.id,
             'is_storable': True,
             'tracking': 'serial',
         })
         # Linh kiện
         cls.comp_screen = cls.env['product.product'].create({
             'name': 'Màn hình LCD',
+            'default_code': 'T4_COMP_SCREEN',
+            'technical_categ_id': tc_screen.id,
             'is_storable': True,
             'tracking': 'serial',
         })
         cls.comp_keyboard = cls.env['product.product'].create({
             'name': 'Bàn phím',
+            'default_code': 'T4_COMP_KB',
+            'technical_categ_id': tc_kb.id,
+            'categ_id': avco_categ.id,
             'is_storable': True,
             'tracking': 'none',
         })
         cls.comp_battery = cls.env['product.product'].create({
             'name': 'Pin',
+            'default_code': 'T4_COMP_BAT',
+            'technical_categ_id': tc_bat.id,
             'is_storable': True,
             'tracking': 'lot',
         })
@@ -112,8 +130,12 @@ class TestProductComponent(TransactionCase):
     # ── component_count computed ──────────────────────────────────
 
     def test_component_count_empty(self):
+        tc_empty = self.env['product.category.technical'].create(
+            {'name': 'Component Empty FG'})
         tmpl = self.env['product.template'].create({
             'name': 'Empty FG',
+            'default_code': 'T4_COMP_EMPTY',
+            'technical_categ_id': tc_empty.id,
             'tracking': 'serial',
         })
         self.assertEqual(tmpl.component_count, 0)

@@ -28,8 +28,7 @@ class ProductTemplate(models.Model):
         string='Tìm TP theo Linh Kiện',
         store=False,
         search='_search_find_fg_by_component',
-        help='Search-only field: nhập tên/mã linh kiện để tìm các Thành Phẩm có '
-             'chứa linh kiện đó trong BOM (component_ids).',
+        help='Trường tìm kiếm: nhập tên hoặc mã linh kiện để tìm các thành phẩm có chứa linh kiện đó.',
     )
 
     def _search_find_fg_by_component(self, operator, value):

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_t4_product_creation_sign_wizard_form" model="ir.ui.view">
+        <field name="name">t4.product.creation.sign.wizard.form</field>
+        <field name="model">t4.product.creation.sign.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Upload Hình Ảnh Xác Minh">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Yêu cầu:</strong> Phiếu đã được in và ký tên.
+                        Vui lòng chụp ảnh phiếu đã ký và upload lên đây để hoàn tất xác nhận.
+                    </div>
+                    <group>
+                        <field name="creation_id" invisible="1"/>
+                        <field name="attachment_name" invisible="1"/>
+                        <field name="creation_name" string="Phiếu"/>
+                        <field name="attachment_data"
+                               widget="image"
+                               filename="attachment_name"
+                               options="{'accepted_file_extensions': '.png,.jpg,.jpeg', 'img_class': 'rounded border'}"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_upload_and_confirm" type="object"
+                            string="Upload &amp; Xác Nhận"
+                            class="btn-primary" data-hotkey="v"/>
+                    <button string="Huỷ" special="cancel"
+                            class="btn-secondary" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

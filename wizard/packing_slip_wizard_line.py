@@ -10,5 +10,5 @@ class PackingSlipWizardLine(models.TransientModel):
     product_id = fields.Many2one('product.product', string='Sản phẩm')
     lot_id = fields.Many2one('stock.lot', string='Mã/Serial')
     qty = fields.Float(string='Số lượng', default=1.0)
-    standard_price = fields.Float(string='Giá Vốn (Snapshot)')
+    standard_price = fields.Float(string='Giá Mua (Snapshot)')
     list_price = fields.Float(string='Giá Kho (Snapshot)')

@@ -5,13 +5,6 @@
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//header" position="inside">
-                <button name="action_create_packing_request" 
-                        string="Mang Lắp Ráp Thành Phẩm" 
-                        type="object" 
-                        class="btn-primary" 
-                        invisible="state not in ('confirmed', 'assigned')" />
-            </xpath>
             <xpath expr="//sheet" position="before">
                 <div class="alert alert-warning" role="alert" invisible="is_locked_by_packing == False">
                     Phiếu xuất kho này hiện đang bị **khóa** do đang trong quá trình lắp ráp thành phẩm (đóng gói). Vui lòng hoàn thành Yêu Cầu Lắp Ráp liên quan để tiếp tục xuất kho.
