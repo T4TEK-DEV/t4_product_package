@@ -310,6 +310,48 @@ class ProductCreation(models.Model):
                         'Chỉ được lắp ráp thành phẩm đang có mặt tại kho Lắp Ráp.'
                     ) % rec.lot_id.name)
 
+    @api.constrains('lot_id', 'lot_name', 'type', 'state')
+    def _check_identify_fg_unique(self):
+        """Phiếu Định Danh LK TP: mỗi Thành Phẩm chỉ được định danh 1 lần.
+
+        Chặn tạo / lưu phiếu Định Danh mới cho một FG (Mã Quản Lý TP) đã
+        có phiếu Định Danh khác — dù phiếu đó đã hoàn thành (done) hay
+        đang dở (draft / waiting). Phiếu đã huỷ (cancel) KHÔNG tính →
+        muốn định danh lại phải huỷ phiếu cũ trước.
+
+        Backstop cho onchange (warning có thể bị bypass qua RPC / import /
+        paste batch). Chỉ kiểm tra phiếu type='identify' chưa done/cancel:
+        phiếu done là đối tượng được so trùng, không tự xét chính nó.
+        So trùng FG theo lot_id (ưu tiên) hoặc lot_name (bắt cả phiếu nháp
+        chưa resolve được lot_id).
+        """
+        for rec in self:
+            if rec.type != 'identify' or rec.state in ('done', 'cancel'):
+                continue
+            fg_name = (rec.lot_id.name if rec.lot_id
+                       else rec.lot_name and rec.lot_name.strip())
+            if not fg_name:
+                continue
+            conflict = self.sudo().search([
+                ('id', '!=', rec.id),
+                ('type', '=', 'identify'),
+                ('state', '!=', 'cancel'),
+                '|', ('lot_id.name', '=', fg_name), ('lot_name', '=', fg_name),
+            ], limit=1)
+            if not conflict:
+                continue
+            state_label = dict(
+                self._fields['state'].selection
+            ).get(conflict.state, conflict.state)
+            raise ValidationError(_(
+                'Thành phẩm "%(fg)s" đã có phiếu Định Danh [%(phieu)s] '
+                '(%(state)s). Mỗi thành phẩm chỉ được định danh một lần. '
+                'Hãy kiểm tra — hoặc huỷ phiếu đó — trước khi tạo phiếu mới.',
+                fg=fg_name,
+                phieu=conflict.name or str(conflict.id),
+                state=state_label,
+            ))
+
     # ------------------------------------------------------------------
     # Onchange — auto-resolve lot_name → lot_id + product_id khi user
     # nhập/quét tên lot
@@ -348,6 +390,34 @@ class ProductCreation(models.Model):
         if lot.product_id:
             self.product_id = lot.product_id
         if self.type == 'identify':
+            # Cảnh báo sớm: FG này đã có phiếu Định Danh khác (done hoặc
+            # đang dở). Backstop cứng nằm ở _check_identify_fg_unique.
+            existing_phieu = self.env['t4.product.creation'].sudo().search([
+                ('id', '!=', self._origin.id),
+                ('type', '=', 'identify'),
+                ('state', '!=', 'cancel'),
+                ('lot_id', '=', lot.id),
+            ], limit=1)
+            if existing_phieu:
+                state_label = dict(
+                    self._fields['state'].selection
+                ).get(existing_phieu.state, existing_phieu.state)
+                self.lot_id = False
+                self.lot_name = False
+                self.product_id = False
+                return {
+                    'warning': {
+                        'title': _('Thành phẩm đã được định danh'),
+                        'message': _(
+                            'Thành phẩm "%(fg)s" đã có phiếu Định Danh '
+                            '[%(phieu)s] (%(state)s). Mỗi thành phẩm chỉ '
+                            'được định danh một lần.',
+                            fg=lot.name,
+                            phieu=existing_phieu.name or str(existing_phieu.id),
+                            state=state_label,
+                        ),
+                    }
+                }
             restricted_quant = self.env['stock.quant'].search([
                 ('lot_id', '=', lot.id),
                 ('location_id.is_usage_restricted', '=', True),
@@ -384,6 +454,26 @@ class ProductCreation(models.Model):
                 ) or _('New')
                 vals['name'] = seq
         return super().create(vals_list)
+
+    def unlink(self):
+        """Chặn xoá phiếu đã hoàn thành / xác nhận.
+
+        - Lắp Ráp (assembly): khi đã Xác Nhận → state='done' → không xoá.
+        - Định Danh (identify): có thêm bước "Hoàn Thành" → state='waiting'
+          (Chờ Nhập Giá); từ bước này trở đi (kể cả 'done') không được xoá.
+
+        Phiếu 'draft' (đang nhập) và 'cancel' (đã huỷ) vẫn xoá được — cron
+        dọn nháp rỗng và việc dọn phiếu huỷ vẫn hoạt động bình thường. Muốn
+        xoá phiếu đang 'waiting' phải Huỷ (action_cancel) trước.
+        """
+        blocked = self.filtered(lambda r: r.state in ('waiting', 'done'))
+        if blocked:
+            names = ', '.join(blocked.mapped('name')[:5])
+            raise UserError(_(
+                'Không thể xoá phiếu đã hoàn thành: %(names)s.',
+                names=names,
+            ))
+        return super().unlink()
 
     # ------------------------------------------------------------------
     # Workflow actions
