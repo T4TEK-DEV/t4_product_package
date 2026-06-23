@@ -251,7 +251,9 @@ class ProductCreation(models.Model):
         currency_field='cost_currency_id',
         compute='_compute_purchase_price',
         store=False,
-        help='Giá mua (standard_price) của thành phẩm tại thời điểm hiển thị.',
+        help='Giá mua của thành phẩm tại thời điểm hiển thị. SN-AVCO '
+             '(lot_valuated) → giá vốn per-lot của serial cụ thể; còn lại '
+             '→ product.standard_price (trung bình).',
     )
 
     @api.depends('company_id')
@@ -269,10 +271,20 @@ class ProductCreation(models.Model):
                 rec.line_ids.mapped('total_list_price')
             )
 
-    @api.depends('product_id.standard_price')
+    @api.depends('product_id.standard_price', 'product_id.lot_valuated',
+                 'lot_id.standard_price')
     def _compute_purchase_price(self):
+        """Giá mua TP: SN-AVCO (lot_valuated) → giá vốn per-lot của serial
+        cụ thể (lot.standard_price); còn lại → product.standard_price
+        (trung bình). Mirror `t4.product.creation.line._t4_snapshot_standard_price`.
+        """
         for rec in self:
-            rec.purchase_price = rec.product_id.standard_price or 0.0
+            product = rec.product_id
+            if (product and product.lot_valuated
+                    and rec.lot_id and rec.lot_id.standard_price):
+                rec.purchase_price = rec.lot_id.standard_price
+            else:
+                rec.purchase_price = (product.standard_price or 0.0) if product else 0.0
 
     # ------------------------------------------------------------------
     # Constraints

@@ -1,4 +1,4 @@
-# t4_product_package — Agent Guide (v1.0.8)
+# t4_product_package — Agent Guide (v1.0.17)
 
 ## Overview
 
@@ -81,6 +81,11 @@ File: `models/product_creation.py`
 - `is_have_printed` (Boolean) — đánh dấu đã in
 - `t4_cost_confirmed`, `t4_cost_confirm_user_id`, `t4_cost_confirm_date` — audit trail xác nhận giá (chỉ identify)
 - `total_standard_price`, `total_list_price` (Monetary, stored computed)
+- `purchase_price` (Monetary, compute, không store) — Giá Mua của **thành phẩm
+  (FG header)**. SN-AVCO (`product.lot_valuated`) → `lot_id.standard_price`
+  (giá vốn serial cụ thể); còn lại → `product_id.standard_price` (trung bình).
+  Mirror logic line `_t4_snapshot_standard_price` (v1.0.17 — trước đây luôn lấy
+  `product_id.standard_price` → sai giá khi FG là SN-AVCO).
 
 **Workflow actions:**
 
