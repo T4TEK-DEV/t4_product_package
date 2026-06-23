@@ -1,4 +1,4 @@
-# t4_product_package — Agent Guide (v1.0.17)
+# t4_product_package — Agent Guide (v1.0.18)
 
 ## Overview
 
@@ -258,6 +258,19 @@ Caller sau khi confirm/cancel phiếu phải gọi:
 ```python
 lot.invalidate_recordset(['fg_component_line_ids', 'fg_all_component_line_ids'])
 ```
+
+**`_t4_descendant_lot_ids()`** (v1.0.18): BFS xuống mọi cấp sub-FG (cycle guard)
+→ set id lot linh kiện đang gắn trong FG này. Dựa `fg_component_line_ids`.
+
+**`t4_partition_scanned(lot_names)`** (`@api.model`, v1.0.18; **không có `_`** vì
+gọi qua RPC): bộ lọc quét
+"giữ thành phẩm — bỏ linh kiện con". Trả `{keep, dropped, fg_products}`. Một mã
+bị bỏ ⟺ lot của nó là linh kiện (đệ quy) của một lot KHÁC **cùng batch** quét;
+mã quét lẻ (cha không trong batch) được giữ. Dùng bởi bộ lọc quét RFID/batch ở
+`t4_sti` (picking move.line — `form_passive_handler` qua cờ
+`filter_fg_components_via_rpc`; form Lắp/Định danh — `rfid_scan_handler`). Quét
+server đọc trúng cả linh kiện bên trong → chỉ ghi nhận server, không báo lỗi
+(BFS `_t4_expand_fg_component_lots` tự kéo linh kiện theo khi chuyển/định danh).
 
 ---
 
