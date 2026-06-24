@@ -428,3 +428,78 @@ class StockLot(models.Model):
             if fg_lot._t4_get_committed_components().get(key, 0.0) > 0:
                 return fg_lot, creation
         return empty_lot, empty_creation
+
+    def _t4_descendant_lot_ids(self):
+        """Tập id lot linh kiện (đệ quy) hiện đang gắn trong FG `self`.
+
+        BFS xuống mọi cấp sub-FG dựa `fg_component_line_ids` (net used−returned).
+        Có cycle guard. Dùng cho bộ lọc quét "giữ thành phẩm — bỏ linh kiện con".
+        """
+        self.ensure_one()
+        result = set()
+        frontier = [self]
+        visited = {self.id}
+        while frontier:
+            nxt = self.browse()
+            for lot in frontier:
+                for comp in lot.sudo().fg_component_line_ids.mapped('lot_id'):
+                    if comp.id in visited:
+                        continue
+                    visited.add(comp.id)
+                    result.add(comp.id)
+                    nxt |= comp
+            frontier = nxt
+        return result
+
+    @api.model
+    def t4_partition_scanned(self, lot_names):
+        """Lọc danh sách mã vừa quét: giữ thành phẩm (top-level), bỏ linh kiện
+        con của một thành phẩm CŨNG có trong danh sách.
+
+        Tên KHÔNG có tiền tố `_` vì được gọi qua RPC (orm.call) từ JS — Odoo
+        `check_method_name` chặn mọi method bắt đầu bằng `_`.
+
+        Một mã bị bỏ ⟺ lot của nó là linh kiện (đệ quy, net used−returned) của
+        một lot khác cũng có trong danh sách quét. Mã quét lẻ (cha không nằm
+        trong danh sách) được GIỮ — validate "không di chuyển linh kiện độc
+        lập" ở nơi khác sẽ xử lý. Mã không resolve được lot cũng giữ nguyên.
+
+        :param lot_names: list tên mã quản lý (lot.name) vừa quét.
+        :returns: dict {
+            'keep':        [tên mã giữ lại, giữ thứ tự + lặp như input],
+            'dropped':     [tên mã bị bỏ],
+            'fg_products': [tên SP thành phẩm có linh kiện bị bỏ, distinct],
+        }
+        """
+        names = [n.strip() for n in (lot_names or []) if n and n.strip()]
+        if not names:
+            return {'keep': [], 'dropped': [], 'fg_products': []}
+        lots = self.sudo().search([('name', 'in', names)])
+        by_name = {lot.name: lot for lot in lots}
+        # < 2 lot resolve được → không thể có cặp cha-con → giữ hết.
+        if len(lots) < 2:
+            return {'keep': names, 'dropped': [], 'fg_products': []}
+
+        scanned_ids = set(lots.ids)
+        drop_ids = set()          # lot bị bỏ (con của FG khác trong batch)
+        fg_for_drop = {}          # drop_lot_id -> fg_lot (gom tên sản phẩm)
+        for fg in lots:
+            fg_desc = fg._t4_descendant_lot_ids()
+            for other_id in scanned_ids & fg_desc:
+                if other_id == fg.id:
+                    continue
+                drop_ids.add(other_id)
+                fg_for_drop.setdefault(other_id, fg)
+
+        keep, dropped, fg_products, seen_fg = [], [], [], set()
+        for name in names:
+            lot = by_name.get(name)
+            if lot and lot.id in drop_ids:
+                dropped.append(name)
+                fg = fg_for_drop.get(lot.id)
+                if fg and fg.id not in seen_fg:
+                    seen_fg.add(fg.id)
+                    fg_products.append(fg.product_id.display_name)
+            else:
+                keep.append(name)
+        return {'keep': keep, 'dropped': dropped, 'fg_products': fg_products}
