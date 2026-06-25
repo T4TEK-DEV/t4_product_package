@@ -545,12 +545,20 @@
         <field name="name">Phiếu Lắp Ráp</field>
         <field name="res_model">t4.product.creation</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('type', '=', 'assembly')]</field>
+        <!-- Lọc theo vai trò (hardcode vào domain, user không bỏ được):
+             - Kế Toán thuần: phiếu waiting+done của MỌI người (t4_pc_own=-1,
+               t4_pc_acc_states=['waiting','done']).
+             - Vai trò khác (kể cả admin/manager): chỉ phiếu MÌNH phụ trách
+               (t4_pc_own=uid, t4_pc_acc_states=[]).
+             Context inject từ t4_sti.ir_http.session_info. Default an toàn khi
+             thiếu key (t4_sti chưa cài): own=uid, acc_states=[] → phiếu của tôi. -->
+        <field name="domain">[('type', '=', 'assembly'),
+            '|', ('responsibility.user_ids', '=', context.get('t4_pc_own', uid)),
+                 ('state', 'in', context.get('t4_pc_acc_states', []))]</field>
         <field name="search_view_id" ref="view_t4_product_creation_search"/>
         <field name="context">{
             'default_type': 'assembly',
             'create': 0,
-            'search_default_filter_my_responsibility': 1,
             't4_auto_input_enabled': True,
             't4_passive_data_handler': True,
             't4_passive_buttons': [{
@@ -618,12 +626,17 @@
         <field name="name">Phiếu Định Danh LK TP</field>
         <field name="res_model">t4.product.creation</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('type', '=', 'identify')]</field>
+        <!-- Lọc theo vai trò (hardcode vào domain, user không bỏ được):
+             - Kế Toán thuần: phiếu waiting+done của MỌI người (để nhập giá).
+             - Vai trò khác (kể cả admin/manager): chỉ phiếu MÌNH phụ trách.
+             Context inject từ t4_sti.ir_http.session_info. Xem action Lắp Ráp. -->
+        <field name="domain">[('type', '=', 'identify'),
+            '|', ('responsibility.user_ids', '=', context.get('t4_pc_own', uid)),
+                 ('state', 'in', context.get('t4_pc_acc_states', []))]</field>
         <field name="search_view_id" ref="view_t4_product_creation_search"/>
         <field name="context">{
             'default_type': 'identify',
             'create': 0,
-            'search_default_filter_my_responsibility': 1,
             't4_auto_input_enabled': True,
             't4_passive_data_handler': True,
             't4_passive_buttons': [{
