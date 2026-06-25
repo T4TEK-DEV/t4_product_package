@@ -111,8 +111,14 @@
                                    readonly="1"
                                    groups="base.group_multi_company"
                                    options="{'no_create': 1, 'no_open': 1}"/>
-                            <field name="brand_part_id" readonly="1"/>
-                            <field name="manufacturer_part_id" readonly="1"/>
+                            <!-- Brd/Mfr S/N related từ lot_id → ẩn khi CHƯA có
+                                 Mã Quản Lý TP (lot_name). Tránh hiện S/N của lot
+                                 cũ khi ô FG đang trống (desync lot_id còn / lot_name
+                                 mất) làm user tưởng đã quét FG. -->
+                            <field name="brand_part_id" readonly="1"
+                                   invisible="not lot_name"/>
+                            <field name="manufacturer_part_id" readonly="1"
+                                   invisible="not lot_name"/>
                             <field name="purchase_price"
                                    widget="monetary"
                                    readonly="1"
