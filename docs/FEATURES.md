@@ -141,7 +141,7 @@ done (kết thúc — không cancel)
 |-------|-------|
 | `total_standard_price` | Tổng giá mua (sum `line_ids.total_standard_price`) |
 | `total_list_price` | Tổng giá kho (sum `line_ids.total_list_price`) |
-| `purchase_price` | Giá mua hiện tại của thành phẩm (`product_id.standard_price`) |
+| `purchase_price` | Giá mua hiện tại của thành phẩm — SN-AVCO (lot_valuated) → `lot_id.standard_price` (giá vốn serial cụ thể); còn lại → `product_id.standard_price` (trung bình) |
 
 ### 2.3 Phân quyền nút & trường
 
