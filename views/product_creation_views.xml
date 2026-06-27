@@ -564,7 +564,7 @@
         <field name="search_view_id" ref="view_t4_product_creation_search"/>
         <field name="context">{
             'default_type': 'assembly',
-            'create': 0,
+            'create': 1,
             't4_auto_input_enabled': True,
             't4_passive_data_handler': True,
             't4_passive_buttons': [{
