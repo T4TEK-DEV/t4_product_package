@@ -675,6 +675,7 @@ class ProductCreation(models.Model):
                     'chưa được nhập kho Lắp ráp thì chưa lắp ráp được.'
                 ))
 
+            rec._t4_auto_return_dropped_components()
             rec._t4_check_returned_consistency()
 
             if rec.packing_request_id:
@@ -691,6 +692,67 @@ class ProductCreation(models.Model):
                     'fg_component_line_ids',
                     'fg_all_component_line_ids',
                 ])
+
+    def _t4_auto_return_dropped_components(self):
+        """A2 — "phiếu lắp ráp mới nhất là danh sách hiện tại của FG".
+
+        Khi xác nhận phiếu lắp ráp, linh kiện thuộc cấu thành CŨ (các phiếu
+        done trước — `_t4_get_committed_components`) mà phiếu này KHÔNG còn
+        dùng (đã xóa) hoặc giảm số lượng → tự tạo dòng "Linh Kiện Trả" để net
+        model gỡ/giảm chúng. Giữ nguyên mô hình net (không sửa logic cấu
+        thành); cả 2 cách gỡ (xóa dòng used / thêm dòng Trả tay) hội tụ về
+        cùng cơ chế.
+
+        Bất biến: **sau confirm, cấu thành FG == danh sách "Sử Dụng" của phiếu
+        này**. Dòng Trả chỉ để triệt tiêu phần đóng góp của phiếu cũ.
+
+        Lượng trả = TOÀN BỘ baseline cũ cho MỌI key (cả serial/lot lẫn
+        tracking='none'). Lý do: `_t4_get_committed_components` CỘNG DỒN used
+        qua các phiếu (KHÔNG dedupe — dedupe chỉ ở field hiển thị
+        `fg_component_line_ids`). Nên phải triệt tiêu toàn bộ đóng góp phiếu
+        cũ; phần linh kiện GIỮ LẠI được dòng used của chính phiếu này cộng lại
+        → net = đúng danh sách phiếu này. Vd serial S2 giữ lại: net =
+        used_phiếu_cũ(1) + used_phiếu_này(1) − trả(1) = 1.
+
+        KHÔNG di chuyển tồn kho (assembly confirm không tạo move) → đúng B3:
+        linh kiện free tại 'Lắp ráp'. `is_scrap=False` (không vào phế phẩm).
+        Idempotent: trừ phần đã trả sẵn trên phiếu (re-confirm / Trả tay).
+        """
+        self.ensure_one()
+        if self.type != 'assembly' or not self.lot_id:
+            return
+        # CHỈ áp dụng cho phiếu RE-ASSEMBLY (có dòng "Sử Dụng" = danh sách
+        # đầy đủ mới). Phiếu CHỈ-TRẢ (line_ids rỗng, chỉ có line_returned_ids)
+        # là ĐIỀU CHỈNH incremental — returns của nó net trừ trực tiếp, KHÔNG
+        # được coi là "redefine danh sách = rỗng" (sẽ trả nhầm toàn bộ FG).
+        if not self.line_ids:
+            return
+        baseline = self.lot_id._t4_get_committed_components()
+        if not baseline:
+            return
+        used = defaultdict(float)
+        for ln in self.line_ids:
+            if ln.product_id and ln.quantity:
+                used[(ln.product_id.id, ln.lot_id.id or 0)] += ln.quantity
+        already = defaultdict(float)
+        for ln in self.line_returned_ids:
+            if ln.product_id and ln.quantity:
+                already[(ln.product_id.id, ln.lot_id.id or 0)] += ln.quantity
+        new_lines = []
+        for key, base_qty in baseline.items():
+            pid, lid = key
+            # Trả full baseline cho mọi key (committed cộng dồn, không dedupe).
+            to_return = base_qty - already.get(key, 0.0)
+            if to_return > 0:
+                new_lines.append((0, 0, {
+                    'state': 'returned',
+                    'product_id': pid,
+                    'lot_id': lid or False,
+                    'quantity': to_return,
+                    'is_scrap': False,
+                }))
+        if new_lines:
+            self.line_returned_ids = new_lines
 
     def _t4_check_returned_consistency(self):
         """Validate net qty (committed + used − returned) ≥ 0 per (product, lot).

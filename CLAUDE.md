@@ -116,6 +116,23 @@ File: `models/product_creation.py`
 `action_confirm` chỉ resolve `lot_name` → `lot_id` bằng cách tìm lot đã tồn tại.
 FG phải được nhập kho Lắp ráp trước (constraint enforce). Không có nhánh tạo lot mới.
 
+**Auto-return khi re-assembly (A2 — `_t4_auto_return_dropped_components`):**
+Mô hình "phiếu lắp ráp mới nhất CÓ dòng used = danh sách linh kiện hiện tại của
+FG". Khi `action_confirm` (assembly có ≥1 dòng used), tự tạo dòng "Linh Kiện Trả"
+để TRIỆT TIÊU toàn bộ đóng góp của các phiếu done TRƯỚC (`_t4_get_committed_components`),
+phần linh kiện GIỮ LẠI được dòng used phiếu này cộng lại → **sau confirm, cấu thành
+FG == danh sách Sử Dụng của phiếu này**. Cả 2 cách gỡ (xóa dòng used / thêm dòng
+Trả tay) hội tụ về net model — KHÔNG sửa logic cấu thành.
+- Trả **full baseline cho MỌI key** vì `_t4_get_committed_components` CỘNG DỒN
+  used qua các phiếu (KHÔNG dedupe; dedupe chỉ ở field hiển thị
+  `fg_component_line_ids`). Vd serial S2 giữ lại: net = used_cũ(1)+used_mới(1)−trả(1)=1.
+- CHỈ chạy khi phiếu có `line_ids` (re-assembly). Phiếu CHỈ-trả (line_ids rỗng) là
+  điều chỉnh incremental → bỏ qua (không coi là "redefine = rỗng").
+- KHÔNG di chuyển tồn kho (assembly confirm không tạo move) — linh kiện free tại
+  'Lắp ráp' (B3); `is_scrap=False`. Free chỉ sau khi confirm thành công (compute
+  chỉ tính phiếu done). Idempotent (trừ phần đã trả sẵn). Tests:
+  `t4_sti/tests/test_assembly_locking.py::test_reassembly_*`.
+
 **Identify — `_t4_create_component_lots()`:**
 - Pass 1: tạo `stock.lot` cho linh kiện tracked; gom cost-bucket; batch-write
   `standard_price` trước khi tạo quant (chỉ cho `cost_method='standard'` —
