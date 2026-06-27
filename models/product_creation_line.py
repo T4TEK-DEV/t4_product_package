@@ -230,7 +230,7 @@ class ProductCreationLine(models.Model):
              'Snapshot từ stock.lot khi assembly; user nhập tay khi identify.',
     )
     manufacturer_part_id = fields.Char(
-        string='Mnf. S/N',
+        string='Mfr. S/N',
         help='Số sê-ri do nhà sản xuất phân bổ. Tương tự brand_part_id.',
     )
 
