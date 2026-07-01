@@ -644,6 +644,25 @@ class ProductCreation(models.Model):
                         button_label=_('Mở lot/serial bị trùng'),
                     )
 
+        # Sign-wizard intercept — CHUYỂN TỪ action_confirm_cost sang đây
+        # (v1.0.23): KỸ THUẬT bấm "Hoàn Thành" phải IN phiếu + úp ảnh xác minh
+        # nếu cấu hình `is_required_print_identify` bật. Kế toán "Xác Nhận Giá"
+        # sau đó KHÔNG qua form úp ảnh nữa. Wizard re-call action_complete với
+        # `t4_bypass_sign_wizard=True`.
+        ctx = self.env.context
+        if not ctx.get('t4_bypass_sign_wizard') and ctx.get('is_required_print_identify'):
+            if not self.is_have_printed:
+                raise UserError(_('Vui lòng in phiếu trước khi hoàn thành.'))
+            if not self.image_tracking_attachment_id:
+                return {
+                    'type': 'ir.actions.act_window',
+                    'name': _('Upload Hình Ảnh Xác Minh'),
+                    'res_model': 't4.product.creation.sign.wizard',
+                    'view_mode': 'form',
+                    'target': 'new',
+                    'context': {'default_creation_id': self.id},
+                }
+
         self.state = 'waiting'
         self.message_post(body=_(
             'Hoàn thành nhập liệu bởi %(user)s. '
@@ -734,27 +753,28 @@ class ProductCreation(models.Model):
     def _t4_auto_return_dropped_components(self):
         """A2 — "phiếu lắp ráp mới nhất là danh sách hiện tại của FG".
 
-        Khi xác nhận phiếu lắp ráp, linh kiện thuộc cấu thành CŨ (các phiếu
-        done trước — `_t4_get_committed_components`) mà phiếu này KHÔNG còn
-        dùng (đã xóa) hoặc giảm số lượng → tự tạo dòng "Linh Kiện Trả" để net
-        model gỡ/giảm chúng. Giữ nguyên mô hình net (không sửa logic cấu
-        thành); cả 2 cách gỡ (xóa dòng used / thêm dòng Trả tay) hội tụ về
-        cùng cơ chế.
+        Khi xác nhận phiếu lắp ráp, linh kiện thuộc cấu thành CŨ (phiếu done
+        trước — `_t4_get_committed_components`, nay đã DEDUPE) mà phiếu này
+        KHÔNG còn dùng (đã xóa) hoặc giảm số lượng → tự tạo dòng "Linh Kiện
+        Trả" để gỡ/giảm chúng. Cả 2 cách gỡ (xóa dòng used / thêm dòng Trả
+        tay) hội tụ về cùng cơ chế.
 
         Bất biến: **sau confirm, cấu thành FG == danh sách "Sử Dụng" của phiếu
-        này**. Dòng Trả chỉ để triệt tiêu phần đóng góp của phiếu cũ.
+        này**.
 
-        Lượng trả = TOÀN BỘ baseline cũ cho MỌI key (cả serial/lot lẫn
-        tracking='none'). Lý do: `_t4_get_committed_components` CỘNG DỒN used
-        qua các phiếu (KHÔNG dedupe — dedupe chỉ ở field hiển thị
-        `fg_component_line_ids`). Nên phải triệt tiêu toàn bộ đóng góp phiếu
-        cũ; phần linh kiện GIỮ LẠI được dòng used của chính phiếu này cộng lại
-        → net = đúng danh sách phiếu này. Vd serial S2 giữ lại: net =
-        used_phiếu_cũ(1) + used_phiếu_này(1) − trả(1) = 1.
+        **v1.0.23 — TRẢ ĐÚNG DELTA (không còn trả full baseline):** vì
+        `_t4_get_committed_components` đã bỏ cộng dồn + dedupe theo (product,
+        lot), baseline = cấu thành thực (mỗi mã 1 lần). Lượng trả mỗi key =
+        `baseline − used(phiếu này) − đã_trả_sẵn`. Linh kiện GIỮ LẠI (có trong
+        "Sử Dụng" mới) → to_return = 0 → KHÔNG trả. Linh kiện BỊ BỎ → trả đúng
+        phần chênh. → "xóa 1 dòng serial ⇒ trả đúng 1 dòng" (trước đây ra 2 vì
+        đếm đôi qua phiếu định danh + lắp ráp).
 
-        KHÔNG di chuyển tồn kho (assembly confirm không tạo move) → đúng B3:
-        linh kiện free tại 'Lắp ráp'. `is_scrap=False` (không vào phế phẩm).
-        Idempotent: trừ phần đã trả sẵn trên phiếu (re-confirm / Trả tay).
+        Điền `lot_name` + Brd/Mfr S/N từ lot cho dòng trả (cột "Mã Quản Lý"
+        bind `lot_name` char passenger, không phải `lot_id`) → không còn rỗng.
+
+        KHÔNG di chuyển tồn kho (assembly confirm không tạo move) → linh kiện
+        free tại 'Lắp ráp'. `is_scrap=False`. Idempotent (trừ phần đã trả sẵn).
         """
         self.ensure_one()
         if self.type != 'assembly' or not self.lot_id:
@@ -776,19 +796,37 @@ class ProductCreation(models.Model):
         for ln in self.line_returned_ids:
             if ln.product_id and ln.quantity:
                 already[(ln.product_id.id, ln.lot_id.id or 0)] += ln.quantity
+        Lot = self.env['stock.lot']
         new_lines = []
         for key, base_qty in baseline.items():
             pid, lid = key
-            # Trả full baseline cho mọi key (committed cộng dồn, không dedupe).
-            to_return = base_qty - already.get(key, 0.0)
+            if lid:
+                # Serial/lot (deduped): trả ĐÚNG DELTA — cấu thành cũ − dùng lại
+                # ở phiếu này − đã trả sẵn. Giữ lại (used khớp) → to_return = 0
+                # → "xóa 1 mã serial ⇒ trả đúng 1 dòng".
+                to_return = base_qty - used.get(key, 0.0) - already.get(key, 0.0)
+            else:
+                # Non-serial (tracking='none', lot_id=0): committed CỘNG DỒN qua
+                # các phiếu (không dedupe) → phải trả TOÀN BỘ baseline cũ để triệt
+                # tiêu; phần giữ lại được cộng lại qua dòng used của chính phiếu
+                # này. Vd cũ 5, phiếu này dùng 3: trả 5 → net = 5+3−5 = 3.
+                to_return = base_qty - already.get(key, 0.0)
             if to_return > 0:
-                new_lines.append((0, 0, {
+                vals = {
                     'state': 'returned',
                     'product_id': pid,
                     'lot_id': lid or False,
                     'quantity': to_return,
                     'is_scrap': False,
-                }))
+                }
+                # Điền char passenger từ lot (cột "Mã Quản Lý"/Brd/Mfr bind
+                # các field char này, không bind lot_id) → dòng trả không rỗng.
+                if lid:
+                    lot = Lot.browse(lid)
+                    vals['lot_name'] = lot.name
+                    vals['brand_part_id'] = lot.brand_part_id or False
+                    vals['manufacturer_part_id'] = lot.manufacturer_part_id or False
+                new_lines.append((0, 0, vals))
         if new_lines:
             self.line_returned_ids = new_lines
 
@@ -881,21 +919,9 @@ class ProductCreation(models.Model):
                 names=names,
             ))
 
-        # Sign-wizard intercept
-        ctx = self.env.context
-        bypass_wizard = ctx.get('t4_bypass_sign_wizard')
-        if not bypass_wizard and ctx.get('is_required_print_identify'):
-            if not self.is_have_printed:
-                raise UserError(_('Vui lòng in phiếu trước khi xác nhận.'))
-            if not self.image_tracking_attachment_id:
-                return {
-                    'type': 'ir.actions.act_window',
-                    'name': _('Upload Hình Ảnh Xác Minh'),
-                    'res_model': 't4.product.creation.sign.wizard',
-                    'view_mode': 'form',
-                    'target': 'new',
-                    'context': {'default_creation_id': self.id},
-                }
+        # Sign-wizard (IN + úp ảnh) đã CHUYỂN sang nút "Hoàn Thành"
+        # (action_complete, v1.0.23). Kế toán "Xác Nhận Giá" bấm thẳng, KHÔNG
+        # qua form úp ảnh nữa.
 
         # Resolve lot_name → lot_id cho TP header (phải tồn tại sẵn)
         if self.lot_name and not self.lot_id:

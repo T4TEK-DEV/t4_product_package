@@ -5,12 +5,14 @@ Mirror `t4.sti.picking.sign.wizard` (t4_sti) — pattern thống nhất:
     1. User bấm xác nhận trên `t4.product.creation`.
     2. Method xác nhận kiểm tra config `t4.sti.config`:
         - type='assembly' + is_required_print_assembly → required (action_confirm)
-        - type='identify' + is_required_print_identify → required (action_confirm_cost)
+        - type='identify' + is_required_print_identify → required (action_complete
+          — v1.0.23: chuyển từ action_confirm_cost sang nút "Hoàn Thành" của
+          KỸ THUẬT; kế toán "Xác Nhận Giá" không qua úp ảnh nữa)
     3. Nếu required: enforce `is_have_printed=True` và mở wizard này nếu
        chưa có `image_tracking_attachment_id`.
     4. Wizard tạo `ir.attachment`, gắn FK, re-call method phù hợp:
         - type='assembly' → action_confirm với t4_bypass_sign_wizard=True
-        - type='identify' → action_confirm_cost với t4_bypass_sign_wizard=True
+        - type='identify' → action_complete với t4_bypass_sign_wizard=True
 """
 from odoo import _, fields, models
 from odoo.exceptions import UserError
@@ -50,5 +52,7 @@ class T4ProductCreationSignWizard(models.TransientModel):
         self.creation_id.image_tracking_attachment_id = attachment.id
         creation = self.creation_id.with_context(t4_bypass_sign_wizard=True)
         if creation.type == 'identify':
-            return creation.action_confirm_cost()
+            # v1.0.23: úp ảnh gắn với nút "Hoàn Thành" (kỹ thuật) → re-call
+            # action_complete (không phải action_confirm_cost của kế toán).
+            return creation.action_complete()
         return creation.action_confirm()

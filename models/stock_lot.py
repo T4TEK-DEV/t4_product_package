@@ -357,40 +357,59 @@ class StockLot(models.Model):
     def _t4_get_committed_components(self):
         """Trả về dict net qty của linh kiện đã commit cho FG này.
 
-        :returns: dict {(product_id, lot_id_or_0): net_qty} — net qty
-            được tính = sum(used) − sum(returned) qua các phiếu done.
-            Chỉ trả về key có net_qty > 0.
+        :returns: dict {(product_id, lot_id_or_0): net_qty}. Chỉ trả về key
+            có net_qty > 0.
 
-        Lưu ý: phải search trực tiếp `t4.product.creation.line` thay vì
-        `rec.line_ids`/`rec.line_returned_ids` — 2 field này có domain
-        filter `state in ('used', 'returned')` nên đọc từ creation chỉ
-        thấy 1 chiều.
+        **v1.0.23 — BỎ CỘNG DỒN, thống nhất với `fg_component_line_ids`:**
+        "Tại một thời điểm chỉ có 1 phiếu đại diện cho cấu thành thực của FG."
+        Trước đây helper này CỘNG DỒN used − returned qua MỌI phiếu done →
+        1 linh kiện xuất hiện ở nhiều phiếu (VD: định danh LKTP rồi lắp ráp
+        khai lại) bị ĐẾM ĐÔI → auto-return phải trả full baseline (2 dòng khi
+        chỉ xóa 1). Nay dùng CHUNG `_t4_net_used_vs_returned` (net returned +
+        DEDUPE theo (product, lot_id) — giữ dòng phiếu mới nhất) để cấu thành
+        (locking + auto-return) khớp đúng với hiển thị "Linh Kiện Đã Lắp".
 
         Match key:
-          - Tracking != 'none' (lot/serial): key = (product, lot_id).
-            Dòng returned phải khớp lot_id để biết "đang trả linh kiện
-            nào". Tracking lot có thể partial: returned 2/3 → key giữ
-            qty=1.
-          - Tracking == 'none': key = (product, 0). Cộng/trừ qty.
+          - serial/lot (lot_id > 0): key = (product, lot_id). Dedupe → mỗi
+            mã đếm 1 lần (phiếu mới nhất đại diện).
+          - tracking='none' (lot_id = 0): key = (product, 0). KHÔNG dedupe —
+            cộng dồn qty (thêm nhiều lần là hợp lệ).
         """
         self.ensure_one()
-        Line = self.env['t4.product.creation.line'].sudo()
-        all_lines = Line.search([
-            ('creation_id.lot_id', '=', self.id),
-            ('creation_id.type', 'in', ['assembly', 'identify']),
-            ('creation_id.state', '=', 'done'),
+        if not self.id:
+            return {}
+        records = self.env['t4.product.creation'].sudo().search([
+            ('lot_id', '=', self.id),
+            ('type', 'in', ['assembly', 'identify']),
+            ('state', '=', 'done'),
         ])
+        if not records:
+            return {}
         net = defaultdict(float)
-        for ln in all_lines:
+        # Serial/lot (lot_id > 0): DEDUPE qua `_t4_net_used_vs_returned` (giữ
+        # dòng phiếu mới nhất mỗi mã) → 1 mã đếm 1 lần dù xuất hiện ở nhiều
+        # phiếu (định danh + lắp ráp). Khớp hiển thị `fg_component_line_ids`.
+        kept = self._t4_net_used_vs_returned(records)
+        for ln in kept:
+            if ln.lot_id and ln.product_id and ln.quantity:
+                net[(ln.product_id.id, ln.lot_id.id)] += ln.quantity
+        # Non-serial (tracking='none', lot_id = 0): tính CHÍNH XÁC
+        # sum(used) − sum(returned). KHÔNG dùng `_t4_net_used_vs_returned` cho
+        # nhánh này vì nó XẤP XỈ partial-return (used 10, trả 3 → vẫn giữ 10)
+        # → sai committed (phải = 7). Non-serial cộng dồn qua các phiếu là hợp lệ.
+        Line = self.env['t4.product.creation.line'].sudo()
+        none_lines = Line.search([
+            ('creation_id', 'in', records.ids),
+            ('lot_id', '=', False),
+        ])
+        for ln in none_lines:
             if not ln.product_id or not ln.quantity:
                 continue
-            key = (ln.product_id.id, ln.lot_id.id or 0)
+            key = (ln.product_id.id, 0)
             if ln.state == 'used':
                 net[key] += ln.quantity
             elif ln.state == 'returned':
                 net[key] -= ln.quantity
-        # Loại key có qty <= 0 (đã trả hết hoặc trả vượt — vượt hiển thị
-        # cảnh báo nghiệp vụ ở chỗ khác)
         return {k: q for k, q in net.items() if q > 0}
 
     def _t4_committing_fg_lot(self):

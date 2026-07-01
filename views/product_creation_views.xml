@@ -193,13 +193,13 @@
                                 <field name="brand_part_id"
                                        string="Brd. S/N"
                                        column_invisible="not context.get('is_have_brand')"
-                                       required="context.get('is_have_brand') and tracking == 'serial' and not manufacturer_part_id"
+                                       required="context.get('is_have_brand') and tracking == 'serial'"
                                        data-auto-input-order="2"
                                        readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                 <field name="manufacturer_part_id"
                                        string="Mfr. S/N"
                                        column_invisible="not context.get('is_have_manufacturer')"
-                                       required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
+                                       required="context.get('is_have_manufacturer') and tracking == 'serial'"
                                        data-auto-input-order="3"
                                        readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                 <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
@@ -254,13 +254,13 @@
                                 <field name="brand_part_id"
                                        string="Brd. S/N"
                                        column_invisible="not context.get('is_have_brand')"
-                                       required="context.get('is_have_brand') and tracking == 'serial' and not manufacturer_part_id"
+                                       required="context.get('is_have_brand') and tracking == 'serial'"
                                        data-auto-input-order="2"
                                        readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                 <field name="manufacturer_part_id"
                                        string="Mfr. S/N"
                                        column_invisible="not context.get('is_have_manufacturer')"
-                                       required="context.get('is_have_manufacturer') and tracking == 'serial' and not brand_part_id"
+                                       required="context.get('is_have_manufacturer') and tracking == 'serial'"
                                        data-auto-input-order="3"
                                        readonly="parent_state in ('waiting', 'done', 'cancel') or not product_id or tracking in ('lot', 'none')" force_save="1"/>
                                 <!-- Thu Mua nhập giá khi state='waiting'; readonly ở mọi state khác.
