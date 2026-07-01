@@ -364,6 +364,44 @@ class ProductCreation(models.Model):
                 state=state_label,
             ))
 
+    @api.constrains('lot_id', 'lot_name', 'line_ids', 'line_returned_ids')
+    def _check_component_not_self_fg(self):
+        """Chặn TỰ THAM CHIẾU: linh kiện KHÔNG được trùng chính Thành Phẩm
+        (FG) của phiếu — cùng serial/lot hoặc cùng Mã Quản Lý.
+
+        Một serial không thể vừa là thành phẩm vừa là linh kiện của chính
+        nó ("vừa làm cha vừa làm con"). Áp dụng cả assembly lẫn identify,
+        mọi dòng (Sử Dụng lẫn Trả). So khớp theo:
+          - lot_id (ưu tiên): dòng.lot_id == FG.lot_id, HOẶC
+          - Mã Quản Lý: lot_name/lot_id.name của dòng trùng của FG (bắt cả
+            trường hợp chưa resolve được lot_id — RPC/import/paste).
+
+        Backstop cho các luồng KHÔNG qua onchange. Chỉ so cùng serial (KHÔNG
+        chặn cùng product khác serial — đó là phạm vi ràng buộc BOM
+        `t4.product.component`).
+        """
+        for rec in self:
+            if rec.state == 'cancel':
+                continue
+            fg_lot = rec.lot_id
+            fg_name = (fg_lot.name if fg_lot else False) or (
+                rec.lot_name and rec.lot_name.strip())
+            if not fg_lot and not fg_name:
+                continue
+            for line in (rec.line_ids | rec.line_returned_ids):
+                line_name = (line.lot_id.name if line.lot_id else False) or (
+                    line.lot_name and line.lot_name.strip())
+                same_lot = bool(fg_lot and line.lot_id and line.lot_id == fg_lot)
+                same_name = bool(fg_name and line_name and fg_name == line_name)
+                if same_lot or same_name:
+                    raise ValidationError(_(
+                        'Linh kiện "%(comp)s" (Mã Quản Lý "%(code)s") trùng '
+                        'chính Thành Phẩm của phiếu — một sản phẩm không thể '
+                        'vừa là thành phẩm vừa là linh kiện của chính nó.',
+                        comp=line.product_id.display_name or _('(chưa chọn)'),
+                        code=line_name or fg_name or '',
+                    ))
+
     # ------------------------------------------------------------------
     # Onchange — auto-resolve lot_name → lot_id + product_id khi user
     # nhập/quét tên lot

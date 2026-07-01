@@ -109,6 +109,12 @@ File: `models/product_creation.py`
 **Constraints:**
 - `_check_lot_location`: identify — lot không ở location `is_usage_restricted`; assembly
   — lot phải có quant > 0 tại location tên "Lắp ráp" (internal).
+- `_check_component_not_self_fg` (v1.0.22): chặn TỰ THAM CHIẾU — dòng linh kiện
+  KHÔNG được trùng chính Thành Phẩm (cùng `lot_id` HOẶC cùng Mã Quản Lý). Áp
+  dụng cả assembly lẫn identify, mọi dòng (used/returned). Chỉ so cùng serial,
+  KHÔNG chặn cùng-product-khác-serial (đó là phạm vi BOM). Migration
+  `1.0.22/post-migration.py` dọn dòng self-ref cũ. Test:
+  `t4_sti/tests/test_assembly_locking.py::test_*_component_*_own_fg_serial`.
 - `_t4_check_returned_consistency()`: chạy trong `action_confirm` (KHÔNG phải
   `@api.constrains`) — returned ≤ committed + used trong cùng phiếu per (product, lot).
 
