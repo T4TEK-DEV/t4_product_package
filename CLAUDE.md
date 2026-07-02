@@ -1,4 +1,4 @@
-# t4_product_package — Agent Guide (v1.0.18)
+# t4_product_package — Agent Guide (v1.0.23)
 
 ## Overview
 
@@ -129,9 +129,14 @@ FG". Khi `action_confirm` (assembly có ≥1 dòng used), tự tạo dòng "Linh
 phần linh kiện GIỮ LẠI được dòng used phiếu này cộng lại → **sau confirm, cấu thành
 FG == danh sách Sử Dụng của phiếu này**. Cả 2 cách gỡ (xóa dòng used / thêm dòng
 Trả tay) hội tụ về net model — KHÔNG sửa logic cấu thành.
-- Trả **full baseline cho MỌI key** vì `_t4_get_committed_components` CỘNG DỒN
-  used qua các phiếu (KHÔNG dedupe; dedupe chỉ ở field hiển thị
-  `fg_component_line_ids`). Vd serial S2 giữ lại: net = used_cũ(1)+used_mới(1)−trả(1)=1.
+- **v1.0.23 — TRẢ ĐÚNG DELTA (bỏ cộng dồn):** `_t4_get_committed_components`
+  KHÔNG còn cộng dồn — nay dùng chung `_t4_net_used_vs_returned` (dedupe theo
+  (product, lot) cho serial/lot, giữ phiếu MỚI NHẤT; non-serial lot_id=0 vẫn
+  cộng dồn). "1 thời điểm chỉ 1 phiếu đại diện cấu thành FG". Auto-return chỉ
+  trả **phần thực sự bị bỏ** = baseline_deduped − used(phiếu này) − đã_trả →
+  **xóa 1 dòng serial ⇒ trả đúng 1 dòng** (trước đây ra 2 vì đếm đôi qua phiếu
+  định danh + lắp ráp). Dòng trả điền `lot_name`/Brd/Mfr từ lot (không rỗng).
+  Migration `1.0.23/post-migration.py` backfill dòng trả cũ rỗng.
 - CHỈ chạy khi phiếu có `line_ids` (re-assembly). Phiếu CHỈ-trả (line_ids rỗng) là
   điều chỉnh incremental → bỏ qua (không coi là "redefine = rỗng").
 - KHÔNG di chuyển tồn kho (assembly confirm không tạo move) — linh kiện free tại
@@ -265,12 +270,12 @@ File: `models/stock_lot.py`
 - Mỗi line giữ `creation_id` của phiếu cấp đó → group theo creation = tách
   thành nhóm theo từng cấp.
 
-**`_t4_get_committed_components()`**:
-- Trả `dict {(product_id, lot_id_or_0): net_qty}` — net used − returned qua mọi
-  phiếu done của FG này.
-- Chỉ trả key có `net_qty > 0`.
-- Search trực tiếp `t4.product.creation.line` (KHÔNG dùng `rec.line_ids` vì
-  domain filter bỏ sót `state='returned'`).
+**`_t4_get_committed_components()`** (v1.0.23 — BỎ CỘNG DỒN):
+- Trả `dict {(product_id, lot_id_or_0): net_qty}`, chỉ key `net_qty > 0`.
+- **Dùng chung `_t4_net_used_vs_returned`** (net returned + DEDUPE theo
+  (product, lot) cho serial/lot — giữ phiếu MỚI NHẤT; non-serial lot_id=0 cộng
+  dồn) → cấu thành cho locking/auto-return KHỚP với hiển thị `fg_component_line_ids`.
+  Trước v1.0.23 cộng dồn → 1 LK ở nhiều phiếu (định danh + lắp ráp) bị đếm đôi.
 
 **`_t4_net_used_vs_returned(creation_records)`**:
 - Helper nội bộ cho cả `_compute_fg_component_line_ids` lẫn BFS.
