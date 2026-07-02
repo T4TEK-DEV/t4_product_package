@@ -3,15 +3,14 @@
 
 Trước v1.0.23, `_t4_auto_return_dropped_components` tạo dòng returned CHỈ set
 `lot_id` (không set `lot_name`/`brand_part_id`/`manufacturer_part_id`). Cột
-"Mã Quản Lý"/"Brd. S/N"/"Mfr. S/N" bind các char passenger này (KHÔNG bind
-lot_id) → hiển thị rỗng. Backfill từ `stock.lot` cho các dòng cũ.
+"Mã Quản Lý"/"Brd. S/N"/"Mfr. S/N" bind các char passenger này → rỗng.
 
-Fill-when-empty: KHÔNG đè giá trị đã có (nhập tay). Chỉ dòng state='returned'
-có lot_id nhưng thiếu ít nhất 1 trong 3 char.
+Dùng **SQL trực tiếp** (KHÔNG qua ORM) để backfill: tránh trigger các
+`@api.constrains` của `t4.product.creation.line` / `stock.move.line` trên DỮ
+LIỆU CŨ chưa hợp lệ (vd dòng serial thiếu S/N) — migration backfill không được
+hard-fail vì legacy data. Fill-when-empty (chỉ điền field còn rỗng).
 """
 import logging
-
-from odoo import SUPERUSER_ID, api
 
 _logger = logging.getLogger(__name__)
 
@@ -19,27 +18,24 @@ _logger = logging.getLogger(__name__)
 def migrate(cr, version):
     if not version:
         return
-    env = api.Environment(cr, SUPERUSER_ID, {})
-    Line = env['t4.product.creation.line']
-    lines = Line.search([
-        ('state', '=', 'returned'),
-        ('lot_id', '!=', False),
-    ])
-    count = 0
-    for ln in lines:
-        lot = ln.lot_id
-        patch = {}
-        if not ln.lot_name and lot.name:
-            patch['lot_name'] = lot.name
-        if not ln.brand_part_id and lot.brand_part_id:
-            patch['brand_part_id'] = lot.brand_part_id
-        if not ln.manufacturer_part_id and lot.manufacturer_part_id:
-            patch['manufacturer_part_id'] = lot.manufacturer_part_id
-        if patch:
-            ln.with_context(t4_skip_bm_snapshot=True).write(patch)
-            count += 1
-    if count:
+    cr.execute("""
+        UPDATE t4_product_creation_line cl
+        SET lot_name = CASE WHEN COALESCE(cl.lot_name, '') = ''
+                            THEN sl.name ELSE cl.lot_name END,
+            brand_part_id = CASE WHEN COALESCE(cl.brand_part_id, '') = ''
+                                 THEN sl.brand_part_id ELSE cl.brand_part_id END,
+            manufacturer_part_id = CASE WHEN COALESCE(cl.manufacturer_part_id, '') = ''
+                                        THEN sl.manufacturer_part_id
+                                        ELSE cl.manufacturer_part_id END
+        FROM stock_lot sl
+        WHERE cl.lot_id = sl.id
+          AND cl.state = 'returned'
+          AND (COALESCE(cl.lot_name, '') = ''
+               OR COALESCE(cl.brand_part_id, '') = ''
+               OR COALESCE(cl.manufacturer_part_id, '') = '')
+    """)
+    if cr.rowcount:
         _logger.warning(
             "t4_product_package 1.0.23: backfill %s dòng Linh Kiện Trả "
-            "(lot_name/Brd/Mfr từ lot).", count,
+            "(lot_name/Brd/Mfr từ lot, SQL).", cr.rowcount,
         )
