@@ -16,7 +16,12 @@
     # `self.env.context` — `t4_sti.ir_http.session_info` inject flags vào
     # user_context khi user login. Nếu `t4_sti` không cài: ctx.get() trả None
     # → wizard không kích hoạt → graceful degradation.
-    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer'],
+    # t4_sti_technical_category: BẮT BUỘC — product_creation_summary.categ_tech_id
+    # related tới product_tmpl_id.technical_categ_id + M2o 'product.category.technical'
+    # (tham chiếu TĨNH; thiếu dep này install partial sẽ fail KeyError khi
+    # auto_install kéo module vào graph mà không có technical_category).
+    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer',
+                't4_sti_technical_category'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
