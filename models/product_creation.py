@@ -434,6 +434,10 @@ class ProductCreation(models.Model):
                 ('product_id.default_code', 'ilike', tok),
                 ('product_id.product_tmpl_id', 'in', tmpl_ids),
             ]
+            # init_name (phần đầu tên hiển thị "init_name | name") — field t4_sti
+            # thêm trên product.template; guard vì base không có.
+            if 'init_name' in self.env['product.template']._fields:
+                leaves.append(('product_id.product_tmpl_id.init_name', 'ilike', tok))
             # Field do t4_sti thêm (không có ở base) — guard bằng _fields.
             if 't4_request_code' in self._fields:
                 leaves.append(('t4_request_code', 'ilike', tok))
