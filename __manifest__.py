@@ -1,6 +1,9 @@
 {
     'name': 'T4 Product Package',
-    'version': '1.0.23',
+    # (2026-07-16): thêm field search_keyword (Tìm tổng hợp) trên
+    # t4.product.creation — search mặc định quét số phiếu/mã lot/SP (+ mã
+    # YC/người thực hiện nếu t4_sti cài); mirror stock.quant.search_keyword.
+    'version': '1.0.24',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,

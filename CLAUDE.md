@@ -1,4 +1,13 @@
-# t4_product_package — Agent Guide (v1.0.23)
+# t4_product_package — Agent Guide (v1.0.24)
+
+## Changelog
+
+- **v1.0.24 (2026-07-16)**: thêm field `search_keyword` (Tìm tổng hợp) trên
+  `t4.product.creation` — search field mặc định trong search view, quét
+  `name`/`lot_id.name`/`lot_name`/`product_id.default_code`/tên sản phẩm đa
+  ngôn ngữ (jsonb) cùng lúc; guard `t4_request_code`/`responsibility` qua
+  `_fields` check (field do `t4_sti` thêm, không có ở base). Mirror
+  `stock.quant.search_keyword` (t4_sti).
 
 ## Overview
 

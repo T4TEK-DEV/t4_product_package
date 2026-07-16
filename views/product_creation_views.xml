@@ -487,6 +487,7 @@
         <field name="model">t4.product.creation</field>
         <field name="arch" type="xml">
             <search string="Tìm Phiếu">
+                <field name="search_keyword" string="Tìm tổng hợp"/>
                 <field name="name"/>
                 <field name="product_id"/>
                 <field name="lot_id"/>
