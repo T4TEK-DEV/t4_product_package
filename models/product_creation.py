@@ -40,6 +40,11 @@ class ProductCreation(models.Model):
         readonly=True,
         index=True,
     )
+    search_keyword = fields.Char(
+        string="Tìm tổng hợp", store=False, search='_search_search_keyword',
+        help="Tìm kiếm tổng hợp: gõ 1 từ khóa quét nhiều trường cùng lúc "
+             "(số phiếu, mã quản lý, sản phẩm, mã yêu cầu, người thực hiện).",
+    )
     type = fields.Selection(
         selection=[
             ('assembly', 'Lắp Ráp'),
@@ -401,6 +406,46 @@ class ProductCreation(models.Model):
                         comp=line.product_id.display_name or _('(chưa chọn)'),
                         code=line_name or fg_name or '',
                     ))
+
+    # ------------------------------------------------------------------
+    # Search — search_keyword tổng hợp (mirror stock.quant.search_keyword)
+    # ------------------------------------------------------------------
+    def _search_search_keyword(self, operator, value):
+        # Tìm kiếm tổng hợp (mirror stock.quant.search_keyword): 1 từ khóa quét
+        # nhiều trường + tên sản phẩm ĐA NGÔN NGỮ (jsonb) cùng lúc.
+        if not value or operator not in ('=', 'ilike', '=ilike', 'like'):
+            return [('id', '=', False)]
+        # Tách theo '|' → OR từng token (dán tên hiển thị "A | B" / quét nhiều mã).
+        tokens = [t.strip() for t in value.split('|') if t.strip()] or [value]
+        leaves = []
+        for tok in tokens:
+            esc = (tok.replace('\\', '\\\\')
+                      .replace('%', '\\%').replace('_', '\\_'))
+            self.env.cr.execute(
+                """SELECT pt.id FROM product_template pt
+                   WHERE EXISTS (SELECT 1 FROM jsonb_each_text(pt.name) t
+                                 WHERE t.value ILIKE %s)""",
+                ('%' + esc + '%',))
+            tmpl_ids = [r[0] for r in self.env.cr.fetchall()]
+            leaves += [
+                ('name', 'ilike', tok),
+                ('lot_id.name', 'ilike', tok),
+                ('lot_name', 'ilike', tok),
+                ('product_id.default_code', 'ilike', tok),
+                ('product_id.product_tmpl_id', 'in', tmpl_ids),
+            ]
+            # init_name (phần đầu tên hiển thị "init_name | name") — field t4_sti
+            # thêm trên product.template; guard vì base không có.
+            if 'init_name' in self.env['product.template']._fields:
+                leaves.append(('product_id.product_tmpl_id.init_name', 'ilike', tok))
+            # Field do t4_sti thêm (không có ở base) — guard bằng _fields.
+            if 't4_request_code' in self._fields:
+                leaves.append(('t4_request_code', 'ilike', tok))
+            if 'responsibility' in self._fields:
+                leaves.append(('responsibility.name', 'ilike', tok))
+        domain = ['|'] * (len(leaves) - 1)
+        domain.extend(leaves)
+        return domain
 
     # ------------------------------------------------------------------
     # Onchange — auto-resolve lot_name → lot_id + product_id khi user

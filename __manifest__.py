@@ -1,6 +1,9 @@
 {
     'name': 'T4 Product Package',
-    'version': '1.0.23',
+    # (2026-07-16): thêm field search_keyword (Tìm tổng hợp) trên
+    # t4.product.creation — search mặc định quét số phiếu/mã lot/SP (+ mã
+    # YC/người thực hiện nếu t4_sti cài); mirror stock.quant.search_keyword.
+    'version': '1.0.24',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
@@ -16,7 +19,12 @@
     # `self.env.context` — `t4_sti.ir_http.session_info` inject flags vào
     # user_context khi user login. Nếu `t4_sti` không cài: ctx.get() trả None
     # → wizard không kích hoạt → graceful degradation.
-    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer'],
+    # t4_sti_technical_category: BẮT BUỘC — product_creation_summary.categ_tech_id
+    # related tới product_tmpl_id.technical_categ_id + M2o 'product.category.technical'
+    # (tham chiếu TĨNH; thiếu dep này install partial sẽ fail KeyError khi
+    # auto_install kéo module vào graph mà không có technical_category).
+    'depends': ['stock', 'sale_stock', 'mail', 't4_sti_brand_manufacturer',
+                't4_sti_technical_category'],
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
