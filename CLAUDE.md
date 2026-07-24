@@ -1,6 +1,15 @@
-# t4_product_package — Agent Guide (v1.0.24)
+# t4_product_package — Agent Guide (v1.0.25)
 
 ## Changelog
+
+- **v1.0.25 (2026-07-23)**: đổi `widget="image"` → `widget="binary"` (bỏ giới
+  hạn `.png/.jpg/.jpeg`, không vỡ preview khi upload PDF/DOC) ở 2 chỗ:
+  - `wizard/product_creation_sign_wizard_views.xml` — field `attachment_data`
+    (giữ `filename="attachment_name"`, bỏ `accepted_file_extensions`/`img_class`).
+  - `views/product_creation_views.xml` — field preview `image_tracking`
+    (giữ `filename="image_tracking_filename"`, bỏ `options size`). Cơ chế lưu
+    (Many2one `ir.attachment`) KHÔNG đổi; nút "Tải Hình Về"
+    (`action_download_image_tracking`) vẫn là đường lấy file gốc.
 
 - **v1.0.24 (2026-07-16)**: thêm field `search_keyword` (Tìm tổng hợp) trên
   `t4.product.creation` — search field mặc định trong search view, quét

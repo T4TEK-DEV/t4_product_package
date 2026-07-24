@@ -16,9 +16,8 @@
                         <field name="attachment_name" invisible="1"/>
                         <field name="creation_name" string="Phiếu"/>
                         <field name="attachment_data"
-                               widget="image"
-                               filename="attachment_name"
-                               options="{'accepted_file_extensions': '.png,.jpg,.jpeg', 'img_class': 'rounded border'}"/>
+                               widget="binary"
+                               filename="attachment_name"/>
                     </group>
                 </sheet>
                 <footer>

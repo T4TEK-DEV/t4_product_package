@@ -398,9 +398,8 @@
                                  để set là wizard `t4.product.creation.sign.wizard`,
                                  mở khi action_confirm gặp config require_print. -->
                             <field name="image_tracking"
-                                   widget="image"
+                                   widget="binary"
                                    filename="image_tracking_filename"
-                                   options="{'size': [600, 0]}"
                                    readonly="1"/>
                         </page>
                     </notebook>
