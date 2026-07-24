@@ -200,7 +200,10 @@ class ProductCreation(models.Model):
     # ------------------------------------------------------------------
     # Notes & verification
     # ------------------------------------------------------------------
-    note = fields.Text(string='Ghi Chú')
+    # v1.0.26: Html (đồng bộ với stock.picking.note "Diễn giải" = fields.Html)
+    # — nút "Tạo Phiếu Lắp Ráp" (t4_sti) copy picking.note (Html) qua context
+    # default_note; Text sẽ hiện raw tag <p>. Cột DB vẫn là text → không migration.
+    note = fields.Html(string='Ghi Chú')
     # Pattern: lưu qua `ir.attachment` thay vì Binary auto-attachment
     # (giống `print_attachment_id` ở stock.picking trong t4_sti). Lợi ích:
     #   - Download URL gọn `/web/content/<id>?download=true`

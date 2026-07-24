@@ -382,7 +382,7 @@
                          ============================================ -->
                     <notebook>
                         <page string="Ghi Chú &amp; Hình Ảnh Xác Minh" name="notes">
-                            <field name="note"
+                            <field name="note" widget="html"
                                    readonly="state == 'done'" force_save="1"
                                    placeholder="Ghi chú nội bộ..."/>
                             <separator string="Hình Ảnh Xác Minh"/>
