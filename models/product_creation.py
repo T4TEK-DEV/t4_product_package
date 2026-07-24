@@ -211,15 +211,15 @@ class ProductCreation(models.Model):
     #   - Cleanup tự động khi xoá record (qua res_model/res_id)
     image_tracking_attachment_id = fields.Many2one(
         'ir.attachment',
-        string='Hình Ảnh Xác Minh - Attachment',
+        string='File Xác Minh - Attachment',
         copy=False,
         ondelete='set null',
     )
     image_tracking = fields.Binary(
-        string='Hình Ảnh Xác Minh',
+        string='File Xác Minh',
         compute='_compute_image_tracking',
         inverse='_inverse_image_tracking',
-        help='Hình chụp xác minh phiếu đã hoàn thành (chữ ký, vật chứng).',
+        help='File xác minh phiếu đã hoàn thành (chữ ký, vật chứng).',
     )
     image_tracking_filename = fields.Char(
         string='Tên File',
@@ -704,7 +704,7 @@ class ProductCreation(models.Model):
             if not self.image_tracking_attachment_id:
                 return {
                     'type': 'ir.actions.act_window',
-                    'name': _('Upload Hình Ảnh Xác Minh'),
+                    'name': _('Upload File Xác Minh'),
                     'res_model': 't4.product.creation.sign.wizard',
                     'view_mode': 'form',
                     'target': 'new',
@@ -750,7 +750,7 @@ class ProductCreation(models.Model):
                 if not rec.image_tracking_attachment_id:
                     return {
                         'type': 'ir.actions.act_window',
-                        'name': _('Upload Hình Ảnh Xác Minh'),
+                        'name': _('Upload File Xác Minh'),
                         'res_model': 't4.product.creation.sign.wizard',
                         'view_mode': 'form',
                         'target': 'new',
@@ -1301,7 +1301,7 @@ class ProductCreation(models.Model):
         """
         self.ensure_one()
         if not self.image_tracking_attachment_id:
-            raise UserError(_("Phiếu chưa có hình ảnh xác minh."))
+            raise UserError(_("Phiếu chưa có file xác minh."))
         return {
             "type": "ir.actions.act_url",
             "url": "/web/content/%s?download=true" % self.image_tracking_attachment_id.id,

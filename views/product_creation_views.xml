@@ -378,22 +378,15 @@
                     </div>
 
                     <!-- ============================================
-                         NOTEBOOK: Ghi chú & Hình ảnh xác minh
+                         NOTEBOOK: Ghi chú & File xác minh
                          ============================================ -->
                     <notebook>
-                        <page string="Ghi Chú &amp; Hình Ảnh Xác Minh" name="notes">
+                        <page string="Ghi Chú &amp; File Xác Minh" name="notes">
                             <field name="note" widget="html"
                                    readonly="state == 'done'" force_save="1"
                                    placeholder="Ghi chú nội bộ..."/>
-                            <separator string="Hình Ảnh Xác Minh"/>
+                            <separator string="File Xác Minh"/>
                             <field name="image_tracking_filename" invisible="1"/>
-                            <div invisible="not image_tracking">
-                                <button name="action_download_image_tracking"
-                                        type="object"
-                                        string="Tải Hình Về"
-                                        icon="fa-download"
-                                        class="btn btn-secondary"/>
-                            </div>
                             <!-- image_tracking readonly tuyệt đối: path duy nhất
                                  để set là wizard `t4.product.creation.sign.wizard`,
                                  mở khi action_confirm gặp config require_print. -->
