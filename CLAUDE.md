@@ -1,6 +1,24 @@
-# t4_product_package — Agent Guide (v1.0.24)
+# t4_product_package — Agent Guide (v1.0.26)
 
 ## Changelog
+
+- **v1.0.26 (2026-07-24)**: `t4.product.creation.note` ("Ghi Chú")
+  `fields.Text` → `fields.Html` để ĐỒNG BỘ với `stock.picking.note` ("Diễn
+  giải" — core `fields.Html`). Nút "Tạo Phiếu Lắp Ráp" (t4_sti, header phiếu
+  yêu cầu lắp ráp done) copy `picking.note` sang qua context `default_note` —
+  khi target là Text thì rich-text Html hiện raw tag `<p>`. Kèm form
+  `views/product_creation_views.xml` field `note` thêm `widget="html"`. Cột DB
+  vẫn `text` → KHÔNG migration. Report `product_creation_report.xml` render
+  `doc.note` qua `t-field` → tự nhận Html, không sửa.
+
+- **v1.0.25 (2026-07-23)**: đổi `widget="image"` → `widget="binary"` (bỏ giới
+  hạn `.png/.jpg/.jpeg`, không vỡ preview khi upload PDF/DOC) ở 2 chỗ:
+  - `wizard/product_creation_sign_wizard_views.xml` — field `attachment_data`
+    (giữ `filename="attachment_name"`, bỏ `accepted_file_extensions`/`img_class`).
+  - `views/product_creation_views.xml` — field preview `image_tracking`
+    (giữ `filename="image_tracking_filename"`, bỏ `options size`). Cơ chế lưu
+    (Many2one `ir.attachment`) KHÔNG đổi; nút "Tải Hình Về"
+    (`action_download_image_tracking`) vẫn là đường lấy file gốc.
 
 - **v1.0.24 (2026-07-16)**: thêm field `search_keyword` (Tìm tổng hợp) trên
   `t4.product.creation` — search field mặc định trong search view, quét

@@ -3,7 +3,14 @@
     # (2026-07-16): thêm field search_keyword (Tìm tổng hợp) trên
     # t4.product.creation — search mặc định quét số phiếu/mã lot/SP (+ mã
     # YC/người thực hiện nếu t4_sti cài); mirror stock.quant.search_keyword.
-    'version': '1.0.24',
+    # 1.0.25 (2026-07-23): widget="image"→"binary" ở sign-wizard + field
+    # preview image_tracking (bỏ giới hạn ảnh, không vỡ preview PDF/DOC).
+    # 1.0.26 (2026-07-24): t4.product.creation.note "Ghi Chú" Text→Html (đồng
+    # bộ với stock.picking.note "Diễn giải" = fields.Html) + form field
+    # widget="html". Nút "Tạo Phiếu Lắp Ráp" (t4_sti) copy picking.note qua
+    # context default_note → trước đây Text hiện raw tag <p>. Cột DB vẫn text →
+    # KHÔNG migration. Report dùng t-field="doc.note" tự render Html đúng.
+    'version': '1.0.26',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
