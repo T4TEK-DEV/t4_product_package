@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== Category + Privilege + nhóm quyền CHỈ để ẩn/hiện menu =====
+
+         Menu "Định Danh LK TP" (STI / THAO TÁC / KỸ THUẬT) trước đây chỉ được
+         khoá bằng Client Scope "STI - Định danh LK trong TP" của Stuflow —
+         một bản ghi chỉ có trong DB, không có `res.groups` thật nào bên dưới.
+         Hệ quả: không có gì để mô tả trong báo cáo phân quyền, và không cấp
+         được bằng tay qua Cài đặt > Người dùng.
+
+         ⚠️ Menu nằm trong cây "STI" nhưng KHÔNG thuộc module `t4_sti`: action
+         của nó là `t4_product_package.action_t4_product_creation_identify_new`
+         trên model `t4.product.creation`. Module chủ là module này, nên
+         Category/Privilege cũng đặt ở đây.
+
+         Odoo 19 xếp nhóm quyền ba tầng: Category (mảng nghiệp vụ) chứa
+         Privilege, Privilege chứa Group.
+         🔴 Category/Privilege CHỈ để xếp nhóm khi hiển thị — không cấp thêm,
+         không bớt đi quyền nào.
+
+         🔴 Group dưới đây CHỈ ẨN/HIỆN MENU — KHÔNG CẤP DỮ LIỆU.
+         Menu hiện lên cần hai điều kiện: (a) user có group gắn trên menu, và
+         (b) user đọc được model của action (`t4.product.creation`). Group này
+         chỉ lo (a); nó chỉ implies `base.group_user`, không kèm dòng ACL nào.
+         ⇒ Cấp riêng mình nó cho một user trắng thì menu VẪN KHÔNG HIỆN.
+
+         Việc gắn group vào menu (và vào Client Scope) nằm ở
+         `migrations/1.0.27/post-menu-gate.py`, không khai được bằng XML vì
+         menu là bản ghi `menu_sync.poc_menu_*` do Stuflow đồng bộ, còn Client
+         Scope thì không có xmlid. -->
+
+    <record id="module_category_t4_product_package" model="ir.module.category">
+        <field name="name">T4 Lắp Ráp &amp; Đóng Gói</field>
+        <field name="sequence">29</field>
+    </record>
+
+    <record id="privilege_identify_component" model="res.groups.privilege">
+        <field name="name">Định Danh LK Trong TP</field>
+        <field name="category_id" ref="module_category_t4_product_package"/>
+        <field name="placeholder">Không</field>
+        <field name="sequence">10</field>
+    </record>
+
+    <record id="group_identify_component" model="res.groups">
+        <field name="name">Có</field>
+        <field name="privilege_id" ref="privilege_identify_component"/>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
+    </record>
+
+</odoo>
