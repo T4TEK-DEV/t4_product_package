@@ -10,7 +10,7 @@
     # widget="html". Nút "Tạo Phiếu Lắp Ráp" (t4_sti) copy picking.note qua
     # context default_note → trước đây Text hiện raw tag <p>. Cột DB vẫn text →
     # KHÔNG migration. Report dùng t-field="doc.note" tự render Html đúng.
-    'version': '1.0.26',
+    'version': '1.0.27',
     'summary': 'Quản lý lắp ráp định danh / đóng gói trong kho STI',
     'description': """
         Module quản lý quy trình đóng gói định danh, cho phép xuất linh kiện sang khu vực lắp ráp,
@@ -35,6 +35,7 @@
     'data': [
         # 1. Security
         'security/ir.model.access.csv',
+        'security/t4_menu_gate.xml',
         # 2. Data (sequences)
         'data/sequence_data.xml',
         'data/ir_cron_cleanup.xml',
